@@ -121,8 +121,8 @@ input[type=range] { width: 100%; accent-color: var(--accent); margin: 0; height:
 #flip { position: absolute; inset: 0; }
 #scroller { position: absolute; left: 0; right: 0; top: 0; will-change: transform; }
 #content { font-family: var(--read-face); color: var(--read); line-height: 1.4; box-sizing: border-box; overflow-wrap: break-word; }
-#content p { margin: 0 0 0.9em; }
-#content .note { color: color-mix(in srgb, var(--accent) 55%, #000); font-size: 0.6em; font-weight: 400; }
+#content p, .measure p { margin: 0 0 0.9em; }
+#content .note, .measure .note { color: color-mix(in srgb, var(--accent) 55%, #000); font-size: 0.6em; font-weight: 400; }
 #shade { position: absolute; left: 0; right: 0; top: 0; pointer-events: none; background: linear-gradient(to bottom, rgba(0,0,0,.82), rgba(0,0,0,.35) 75%, rgba(0,0,0,0)); }
 #mark { position: absolute; left: 0; right: 0; height: 0; pointer-events: none; }
 #mark i { position: absolute; top: -9px; width: 0; height: 0; border-top: 9px solid transparent; border-bottom: 9px solid transparent; }
@@ -139,6 +139,9 @@ input[type=range] { width: 100%; accent-color: var(--accent); margin: 0; height:
 .hg button:active { background: var(--line); }
 #play { min-width: 92px; }
 
+#timer { position: absolute; left: max(12px, env(safe-area-inset-left, 0px)); bottom: calc(env(safe-area-inset-bottom, 0px) + 10px); font-family: var(--mono); font-size: 13px; color: rgba(236, 235, 230, .55); pointer-events: none; font-variant-numeric: tabular-nums; }
+.stats-all { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.linkish { background: none; border: 0; padding: 0; color: var(--muted); text-decoration: underline; font-size: 0.85rem; }
 #progress { position: absolute; left: 0; right: 0; bottom: 0; height: 3px; background: #15171a; pointer-events: none; }
 #bar { display: block; height: 100%; width: 0; background: var(--accent); }
 #toast { position: absolute; left: 50%; bottom: calc(env(safe-area-inset-bottom, 0px) + 22px); transform: translateX(-50%); background: rgba(22, 26, 31, .94); border: 1px solid var(--line); color: var(--fg); font-family: var(--ui); font-weight: 600; padding: 8px 16px; border-radius: 999px; opacity: 0; transition: opacity .2s; pointer-events: none; white-space: nowrap; max-width: calc(100% - 32px); overflow: hidden; text-overflow: ellipsis; }
@@ -185,6 +188,7 @@ input[type=range] { width: 100%; accent-color: var(--accent); margin: 0; height:
         <button id="clear" class="ghost" type="button">Limpar texto</button>
         <button id="delScript" class="ghost" type="button">Apagar roteiro</button>
       </div>
+      <div class="stats-all" id="avgAll" hidden><span class="meta" id="avgAllText"></span><button class="linkish" id="resetTimes" type="button">Zerar tempos</button></div>
       <span class="hint">Trechos entre [colchetes] aparecem pequenos e apagados: servem de nota pra você, não pra ler. A configuração ligada ao roteiro entra sozinha quando você começa a ler, assim cada pessoa lê na velocidade e no tamanho dela.</span>
     </section>
 
@@ -268,6 +272,7 @@ input[type=range] { width: 100%; accent-color: var(--accent); margin: 0; height:
     </div>
   </aside>
   <div id="progress"><i id="bar"></i></div>
+  <div id="timer"></div>
   <div id="toast"></div>
   <div id="count" hidden></div>
   <div id="cover">
@@ -283,7 +288,7 @@ input[type=range] { width: 100%; accent-color: var(--accent); margin: 0; height:
   const LH = 1.4;
   const DEF = {
     speed: 7, font: 56, margin: 8, mVert: 0, line: 30, back: 2, align: 'left',
-    flipH: false, flipV: false, bold: true, resume: true, countdown: true,
+    flipH: false, flipV: false, bold: true, resume: true, countdown: true, showTime: true,
     map: {
       ArrowUp: 'back', ArrowLeft: 'back', PageUp: 'back', WheelUp: 'back',
       ArrowDown: 'pause', ArrowRight: 'pause', PageDown: 'pause', Space: 'pause', Enter: 'pause', MediaPlayPause: 'pause', WheelDown: 'pause'
@@ -337,7 +342,8 @@ Ajuste a velocidade, o tamanho da letra e a margem até ficar confortável, e sa
     ['flipV', 'Espelhar na vertical'],
     ['bold', 'Letra em negrito'],
     ['resume', 'Depois de voltar, continuar descendo mesmo se estiver pausado'],
-    ['countdown', 'Contagem 3, 2, 1 antes de começar']
+    ['countdown', 'Contagem 3, 2, 1 antes de começar'],
+    ['showTime', 'Mostrar o tempo durante a leitura']
   ];
   /* Os mesmos controles aparecem em dois lugares: na tela de ajustes ('') e no painel da leitura ('p') */
   const PREFIXES = ['', 'p'];
@@ -375,7 +381,29 @@ Ajuste a velocidade, o tamanho da letra e a margem até ficar confortável, e sa
   /* ---------- Roteiros ---------- */
   const txt = $('#txt'), scriptName = $('#scriptName');
   const nameOf = s => s.name.trim() || 'Sem nome';
-  function wordCount() { const n = (txt.value.match(/\S+/g) || []).length; $('#wc').textContent = n + (n === 1 ? ' palavra' : ' palavras'); }
+  const fmtTime = s => { s = Math.max(0, Math.round(s)); return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'); };
+  const avg = a => a.reduce((x, y) => x + y, 0) / a.length;
+  const confOf = s => (presets.find(p => p.name === s.preset) || {}).s || S;
+  let measurer;
+  function estimate(text, conf) {   // segundos pra rolar o texto inteiro, medindo como ele fica na tela
+    if (!measurer) { measurer = document.createElement('div'); measurer.className = 'measure'; document.body.append(measurer); }
+    measurer.style.cssText = `position:absolute;left:-9999px;top:0;visibility:hidden;box-sizing:border-box;width:${Math.max(innerWidth, 320)}px;` +
+      `font-family:var(--read-face);line-height:${LH};font-size:${conf.font}px;font-weight:${conf.bold ? 700 : 400};` +
+      `padding:0 calc(${conf.margin}% + 20px);overflow-wrap:break-word`;
+    measurer.innerHTML = paraHtml(text);
+    const travel = Math.max(0, measurer.offsetHeight - conf.font * LH);
+    return travel / (conf.speed * 5 * (conf.font / 48));
+  }
+  function wordCount() {
+    const s = cur(), n = (txt.value.match(/\S+/g) || []).length;
+    const parts = [n + (n === 1 ? ' palavra' : ' palavras')];
+    if (n) parts.push('~' + fmtTime(estimate(txt.value, confOf(s))) + ' na velocidade ' + fmt(confOf(s).speed));
+    if (s.takes && s.takes.length) parts.push('média ' + fmtTime(avg(s.takes)) + ' em ' + s.takes.length + (s.takes.length > 1 ? ' leituras' : ' leitura'));
+    $('#wc').textContent = parts.join(' · ');
+    const all = scripts.flatMap(x => x.takes || []);
+    $('#avgAll').hidden = !all.length;
+    $('#avgAllText').textContent = all.length ? `Média de todos os roteiros: ${fmtTime(avg(all))} (${all.length} ${all.length > 1 ? 'leituras' : 'leitura'})` : '';
+  }
   function renderScriptList() {
     $('#scriptList').innerHTML = '';
     scripts.forEach(s => {
@@ -389,6 +417,7 @@ Ajuste a velocidade, o tamanho da letra e a margem até ficar confortável, e sa
   }
   function renderScripts() {
     renderScriptList();
+    wordCount();
     if (document.activeElement !== scriptName) scriptName.value = cur().name;
     const linked = cur().preset;
     $('#scriptPreset').innerHTML = '<option value="">A que estiver em uso</option>' +
@@ -398,7 +427,7 @@ Ajuste a velocidade, o tamanho da letra e a margem até ficar confortável, e sa
   function selectScript(id) {
     currentId = id;
     txt.value = cur().text;
-    wordCount(); renderScripts(); save();
+    renderScripts(); save();
   }
   function applyLinkedPreset() {
     const p = presets.find(p => p.name === cur().preset);
@@ -411,7 +440,17 @@ Ajuste a velocidade, o tamanho da letra e a margem até ficar confortável, e sa
     scriptName.focus(); scriptName.select();
   });
   scriptName.addEventListener('input', () => { cur().name = scriptName.value; save(); renderScriptList(); });
-  $('#scriptPreset').addEventListener('change', e => { cur().preset = e.target.value; save(); });
+  $('#scriptPreset').addEventListener('change', e => { cur().preset = e.target.value; save(); wordCount(); });
+  $('#resetTimes').addEventListener('click', e => {
+    const b = e.currentTarget;
+    if (!b.classList.contains('danger')) {
+      b.classList.add('danger'); b.textContent = 'Confirmar: zerar os tempos de todos';
+      setTimeout(() => { b.classList.remove('danger'); b.textContent = 'Zerar tempos'; }, 3000);
+      return;
+    }
+    b.classList.remove('danger'); b.textContent = 'Zerar tempos';
+    scripts.forEach(s => { delete s.takes; }); save(); wordCount();
+  });
   txt.addEventListener('input', () => { cur().text = txt.value; save(); wordCount(); });
   $('#clear').addEventListener('click', () => { txt.value = ''; cur().text = ''; save(); wordCount(); txt.focus(); });
   $('#delScript').addEventListener('click', e => {
@@ -428,7 +467,6 @@ Ajuste a velocidade, o tamanho da letra e a margem até ficar confortável, e sa
     selectScript(scripts[Math.max(0, i - 1)].id);
   });
   txt.value = cur().text;
-  wordCount();
 
   /* ---------- Pedal ---------- */
   const LABEL = { ArrowUp: '↑ seta pra cima', ArrowDown: '↓ seta pra baixo', ArrowLeft: '← seta esquerda', ArrowRight: '→ seta direita', PageUp: 'Page Up', PageDown: 'Page Down', Space: 'Espaço', Enter: 'Enter', Escape: 'Esc', MediaPlayPause: 'Play/Pause', WheelUp: 'Rolagem pra cima', WheelDown: 'Rolagem pra baixo' };
@@ -526,12 +564,12 @@ Ajuste a velocidade, o tamanho da letra e a margem até ficar confortável, e sa
   const fastPx = () => Math.max(lineH() * 5, speedPx() * 6);
   const clamp = v => Math.max(0, Math.min(maxPos, v));
 
-  const esc = s => s.replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  function paraHtml(text) {
+    return text.replace(/\r/g, '').split(/\n\s*\n/).map(p => p.trim()).filter(Boolean)
+      .map(p => '<p>' + escHtml(p).replace(/\[([^\]\n]*)\]/g, '<span class="note">[$1]</span>').replace(/\n/g, '<br>') + '</p>').join('');
+  }
   function render() {
-    const paras = cur().text.replace(/\r/g, '').split(/\n\s*\n/).map(p => p.trim()).filter(Boolean);
-    content.innerHTML = paras.length
-      ? paras.map(p => '<p>' + esc(p).replace(/\[([^\]\n]*)\]/g, '<span class="note">[$1]</span>').replace(/\n/g, '<br>') + '</p>').join('')
-      : '<p class="note">Sem texto. Toque em Editar e cole o roteiro.</p>';
+    content.innerHTML = paraHtml(cur().text) || '<p class="note">Sem texto. Toque em Editar e cole o roteiro.</p>';
   }
   function layout(keepRatio) {
     const ratio = maxPos ? pos / maxPos : 0;
@@ -598,6 +636,7 @@ Ajuste a velocidade, o tamanho da letra e a margem até ficar confortável, e sa
   function begin() {
     if (cover.hidden) return;
     cover.hidden = true;
+    newTake();
     stage.focus({ preventScroll: true });
     wake();
     if (S.countdown) countdown(); else setPlaying(true);
@@ -741,11 +780,11 @@ Ajuste a velocidade, o tamanho da letra e a margem até ficar confortável, e sa
   $('#pScript').addEventListener('change', e => {
     selectScript(e.target.value);
     applyLinkedPreset();
-    cancelCount(); setPlaying(false); jump = null; hold = null; pos = 0;
+    cancelCount(); setPlaying(false); jump = null; hold = null; pos = 0; newTake();
     render(); layout(false); updateHud();
     toast(nameOf(cur()), 1200);
   });
-  $('#restart').addEventListener('click', () => { jump = null; pos = 0; paint(); stage.focus({ preventScroll: true }); });
+  $('#restart').addEventListener('click', () => { jump = null; pos = 0; newTake(); paint(); stage.focus({ preventScroll: true }); });
   hud.addEventListener('click', e => {
     const b = e.target.closest('[data-step]'); if (!b) return;
     const [k, d] = b.dataset.step.split(':');
@@ -756,6 +795,21 @@ Ajuste a velocidade, o tamanho da letra e a margem até ficar confortável, e sa
   });
   $('#go').addEventListener('click', openReader);
   window.addEventListener('resize', () => { if (!reader.hidden) layout(true); });
+
+  /* Tempo da leitura: conta só enquanto o texto anda (pausa não entra) */
+  let elapsed = 0, takeDone = false, shownTime = '';
+  function newTake() { elapsed = 0; takeDone = false; }
+  function recordTake() {
+    if (takeDone || elapsed < 5) return;
+    takeDone = true;
+    const s = cur();
+    s.takes = (s.takes || []).concat(Math.round(elapsed)).slice(-20);
+    save();
+  }
+  function paintTimer() {
+    const t = S.showTime && cover.hidden ? fmtTime(elapsed) + ' · faltam ' + fmtTime((maxPos - pos) / speedPx()) : '';
+    if (t !== shownTime) { $('#timer').textContent = shownTime = t; }
+  }
 
   /* Laço de rolagem */
   let last = null;
@@ -773,8 +827,12 @@ Ajuste a velocidade, o tamanho da letra e a margem até ficar confortável, e sa
       else if (hold === 'fwd') pos += fastPx() * dt;
       else if (playing && !counting) pos += speedPx() * dt;
       pos = clamp(pos);
-      if (playing && !hold && !jump && maxPos > 0 && pos >= maxPos) { setPlaying(false); toast('Fim do texto', 1500); }
-      paint();
+      if (cover.hidden && !counting && (playing || hold)) elapsed += dt;
+      if (playing && !hold && !jump && maxPos > 0 && pos >= maxPos) {
+        setPlaying(false); recordTake();
+        toast('Fim do texto · ' + fmtTime(elapsed), 2500);
+      }
+      paint(); paintTimer();
     }
     requestAnimationFrame(frame);
   }
