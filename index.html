@@ -1,0 +1,704 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Teleprompter">
+<meta name="theme-color" content="#0f1114">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="stylesheet" href="fonts.css">
+<style>
+:root { padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); }
+body { margin: 0; }
+img { max-width: 100%; }
+[hidden] { display: none !important; }
+</style>
+<script>
+if ('serviceWorker' in navigator) addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
+</script>
+<title>Teleprompter com Pedal</title>
+<style>
+/* Layout: uma bancada escura. Ajustes = texto à esquerda + controles à direita (empilha no celular). Leitura = palco preto em tela cheia com a linha âmbar de leitura. */
+:root {
+  --bg: #0f1114;
+  --panel: #161a1f;
+  --line: #272b33;
+  --fg: #ecebe6;
+  --muted: #8d929b;
+  --accent: #f2b33d;
+  --accent-ink: #1b1405;
+  --danger: #ef6b5b;
+  --stage: #000;
+  --read: #f6f5f0;
+  --ui: "Figtree", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --read-face: "Atkinson Hyperlegible", "Helvetica Neue", Arial, sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, Menlo, monospace;
+  color-scheme: dark;
+}
+html.reading, html.reading body { overflow: hidden; height: 100%; }
+body { background: var(--bg); color: var(--fg); font-family: var(--ui); font-size: 15px; line-height: 1.45; -webkit-text-size-adjust: 100%; }
+button, input, textarea { font: inherit; color: inherit; }
+button { cursor: pointer; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* ---------- Ajustes ---------- */
+body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 10; background: var(--bg); }
+#setup { padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 0 40px; max-width: 1180px; margin: 0 auto; }
+.top { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5; background: var(--bg); display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-block: 14px; border-bottom: 1px solid var(--line); margin-bottom: 18px; }
+.brand { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.brand h1 { font-size: 1.15rem; font-weight: 700; margin: 0; letter-spacing: -0.01em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tally { width: 10px; height: 10px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 22%, transparent); flex: none; }
+.primary { background: var(--accent); color: var(--accent-ink); border: 0; border-radius: 10px; padding: 11px 18px; font-weight: 700; white-space: nowrap; }
+.primary:active { transform: translateY(1px); }
+.ghost { background: transparent; border: 1px solid var(--line); border-radius: 8px; padding: 7px 12px; color: var(--fg); font-weight: 500; }
+.ghost:hover { border-color: var(--muted); }
+
+.grid { display: grid; grid-template-columns: 1fr; gap: 18px; }
+@media (min-width: 900px) { .grid { grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); align-items: start; } .text-card { position: sticky; top: calc(env(safe-area-inset-top, 0px) + 78px); } }
+.side { display: grid; gap: 18px; min-width: 0; }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 18px; min-width: 0; display: grid; gap: 14px; }
+.card h2 { font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.09em; color: var(--muted); font-weight: 600; margin: 0; }
+.sec-head { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; }
+.meta { color: var(--muted); font-size: 0.85rem; font-variant-numeric: tabular-nums; }
+#txt { width: 100%; min-height: 46vh; resize: vertical; background: var(--bg); border: 1px solid var(--line); border-radius: 10px; padding: 14px; font-family: var(--read-face); font-size: 1.05rem; line-height: 1.55; box-sizing: border-box; }
+.row-actions { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+.hint { color: var(--muted); font-size: 0.85rem; }
+
+.ctl { display: grid; gap: 6px; }
+.ctl-top { display: flex; justify-content: space-between; gap: 10px; }
+.ctl-top label { font-weight: 500; }
+.ctl-top output { color: var(--accent); font-family: var(--mono); font-size: 0.85rem; font-variant-numeric: tabular-nums; }
+input[type=range] { width: 100%; accent-color: var(--accent); margin: 0; height: 28px; }
+
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 9px; overflow: hidden; }
+.seg button { background: transparent; border: 0; padding: 7px 14px; color: var(--muted); font-weight: 500; }
+.seg button[aria-pressed=true] { background: var(--accent); color: var(--accent-ink); }
+.inline { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+
+.switch { display: flex; justify-content: space-between; align-items: center; gap: 12px; cursor: pointer; }
+.switch input { appearance: none; -webkit-appearance: none; width: 44px; height: 26px; border-radius: 13px; background: var(--line); position: relative; flex: none; margin: 0; cursor: pointer; transition: background .15s; }
+.switch input::after { content: ""; position: absolute; top: 3px; left: 3px; width: 20px; height: 20px; border-radius: 50%; background: var(--fg); transition: transform .15s; }
+.switch input:checked { background: var(--accent); }
+.switch input:checked::after { transform: translateX(18px); background: var(--accent-ink); }
+.divider { border: 0; border-top: 1px solid var(--line); margin: 2px 0; }
+
+.lead { margin: 0; color: var(--fg); }
+.pedal-map { display: grid; gap: 8px; }
+.sig { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--bg); transition: border-color .15s, box-shadow .15s; }
+.sig span { font-family: var(--mono); font-size: 0.85rem; min-width: 0; overflow-wrap: anywhere; }
+.sig select { background: var(--panel); color: var(--fg); border: 1px solid var(--line); border-radius: 8px; padding: 7px 10px; font-family: var(--ui); font-size: 16px; max-width: 62%; }
+.sig.hit { border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 25%, transparent); }
+
+.saveForm { display: flex; gap: 8px; }
+.presetName { flex: 1; min-width: 0; background: var(--bg); border: 1px solid var(--line); border-radius: 9px; padding: 9px 12px; font-size: 16px; }
+.presets{ list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.presetsli { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 10px; align-items: center; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--bg); }
+.presetsli.active { border-color: color-mix(in srgb, var(--accent) 60%, var(--line)); }
+.presets.pname { font-weight: 600; overflow-wrap: anywhere; }
+.presets.pname em { font-style: normal; font-size: 0.72rem; color: var(--accent-ink); background: var(--accent); border-radius: 4px; padding: 1px 6px; margin-left: 6px; vertical-align: 2px; }
+.presets.psum { grid-column: 1; color: var(--muted); font-size: 0.82rem; }
+.presets.pbtns { grid-column: 2; grid-row: 1 / span 2; display: flex; gap: 6px; }
+.presets.empty { display: block; color: var(--muted); border-style: dashed; }
+.danger { border-color: var(--danger) !important; color: var(--danger) !important; }
+
+/* ---------- Leitura ---------- */
+#reader { position: fixed; inset: 0; background: var(--stage); z-index: 20; }
+#stage { position: absolute; inset: 0; overflow: hidden; touch-action: none; outline: none; user-select: none; -webkit-user-select: none; }
+#flip { position: absolute; inset: 0; }
+#scroller { position: absolute; left: 0; right: 0; top: 0; will-change: transform; }
+#content { font-family: var(--read-face); color: var(--read); line-height: 1.4; box-sizing: border-box; overflow-wrap: break-word; }
+#content p { margin: 0 0 0.9em; }
+#content .note { color: color-mix(in srgb, var(--accent) 55%, #000); font-size: 0.6em; font-weight: 400; }
+#shade { position: absolute; left: 0; right: 0; top: 0; pointer-events: none; background: linear-gradient(to bottom, rgba(0,0,0,.82), rgba(0,0,0,.35) 75%, rgba(0,0,0,0)); }
+#mark { position: absolute; left: 0; right: 0; height: 0; pointer-events: none; }
+#mark i { position: absolute; top: -9px; width: 0; height: 0; border-top: 9px solid transparent; border-bottom: 9px solid transparent; }
+#mark .l { left: max(4px, env(safe-area-inset-left, 0px)); border-left: 14px solid var(--accent); }
+#mark .r { right: max(4px, env(safe-area-inset-right, 0px)); border-right: 14px solid var(--accent); }
+
+#hud { position: absolute; top: 0; left: 0; right: 0; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: calc(env(safe-area-inset-top, 0px) + 10px) max(12px, env(safe-area-inset-right, 0px)) 10px max(12px, env(safe-area-inset-left, 0px)); background: rgba(10, 11, 13, .88); border-bottom: 1px solid var(--line); transition: opacity .25s, transform .25s; opacity: 0; transform: translateY(-100%); pointer-events: none; font-family: var(--ui); }
+#hud.show { opacity: 1; transform: none; pointer-events: auto; }
+#hud .grow { flex: 1; }
+.hg { display: flex; align-items: center; gap: 4px; border: 1px solid var(--line); border-radius: 9px; padding: 2px 4px 2px 10px; }
+.hg span { color: var(--muted); font-size: 0.8rem; margin-right: 2px; }
+.hg b { font-family: var(--mono); font-size: 0.85rem; min-width: 3.2ch; text-align: center; font-variant-numeric: tabular-nums; }
+.hg button { background: transparent; border: 0; width: 34px; height: 32px; font-size: 1.2rem; border-radius: 6px; }
+.hg button:active { background: var(--line); }
+#play { min-width: 92px; }
+
+#progress { position: absolute; left: 0; right: 0; bottom: 0; height: 3px; background: #15171a; pointer-events: none; }
+#bar { display: block; height: 100%; width: 0; background: var(--accent); }
+#toast { position: absolute; left: 50%; bottom: calc(env(safe-area-inset-bottom, 0px) + 22px); transform: translateX(-50%); background: rgba(22, 26, 31, .94); border: 1px solid var(--line); color: var(--fg); font-family: var(--ui); font-weight: 600; padding: 8px 16px; border-radius: 999px; opacity: 0; transition: opacity .2s; pointer-events: none; white-space: nowrap; max-width: calc(100% - 32px); overflow: hidden; text-overflow: ellipsis; }
+#toast.on { opacity: 1; }
+#cover { position: absolute; inset: 0; display: grid; place-content: center; justify-items: center; gap: 12px; background: rgba(0,0,0,.72); text-align: center; padding-inline: 24px; font-family: var(--ui); }
+#cover button { font-size: 1.2rem; padding: 16px 28px; border-radius: 14px; }
+#cover p { color: var(--muted); margin: 0; max-width: 34ch; }
+#count { position: absolute; inset: 0; display: grid; place-items: center; font-family: var(--read-face); font-weight: 700; font-size: 32vmin; color: var(--accent); pointer-events: none; text-shadow: 0 0 40px rgba(0,0,0,.8); }
+
+#panel { position: absolute; top: 0; right: 0; bottom: 0; width: min(390px, 100%); display: flex; flex-direction: column; background: rgba(16, 18, 22, .95); border-left: 1px solid var(--line); font-family: var(--ui); color: var(--fg); padding-top: env(safe-area-inset-top, 0px); padding-right: env(safe-area-inset-right, 0px); box-sizing: border-box; }
+.panel-head { display: flex; align-items: center; gap: 8px; padding: 12px 16px; border-bottom: 1px solid var(--line); }
+.panel-head .grow { flex: 1; }
+.panel-body { overflow-y: auto; -webkit-overflow-scrolling: touch; overscroll-behavior: contain; padding: 16px 16px calc(20px + env(safe-area-inset-bottom, 0px)); display: grid; gap: 14px; align-content: start; }
+#panel h2 { font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.09em; color: var(--muted); font-weight: 600; margin: 0; }
+.stack { display: grid; gap: 14px; }
+#reader.editing #stage { outline: 1px dashed color-mix(in srgb, var(--accent) 55%, transparent); outline-offset: -1px; }
+@media (max-width: 700px) {
+  #panel { top: auto; left: 0; width: auto; max-height: 58%; border-left: 0; border-top: 1px solid var(--line); border-radius: 16px 16px 0 0; padding-top: 0; padding-left: env(safe-area-inset-left, 0px); }
+}
+
+@media (prefers-reduced-motion: reduce) { #hud, #toast, .switch input, .switch input::after { transition: none; } }
+</style>
+
+</head>
+<body>
+<main id="setup">
+  <header class="top">
+    <div class="brand"><span class="tally"></span><h1>Teleprompter com Pedal</h1></div>
+    <button id="go" class="primary" type="button">Começar a ler</button>
+  </header>
+
+  <div class="grid">
+    <section class="card text-card">
+      <div class="sec-head"><h2>Texto</h2><span id="wc" class="meta"></span></div>
+      <textarea id="txt" spellcheck="false" placeholder="Cole aqui o texto do roteiro"></textarea>
+      <div class="row-actions">
+        <button id="clear" class="ghost" type="button">Limpar texto</button>
+        <span class="hint">Trechos entre [colchetes] aparecem pequenos e apagados: servem de nota pra você, não pra ler.</span>
+      </div>
+    </section>
+
+    <div class="side">
+      <section class="card" id="adjust">
+        <h2>Ajustes</h2>
+        <div id="sliders" style="display:grid;gap:14px"></div>
+        <div class="inline"><span>Alinhamento</span>
+          <div class="seg align"><button type="button" data-v="left">Esquerda</button><button type="button" data-v="center">Centro</button></div>
+        </div>
+        <hr class="divider">
+        <div id="toggles" style="display:grid;gap:12px"></div>
+      </section>
+
+      <section class="card">
+        <h2>Pedal</h2>
+        <p class="lead">Pise em cada botão do pedal. O sinal que ele manda aparece aqui embaixo, acende quando você pisa, e você escolhe o que cada um faz.</p>
+        <div class="pedal-map"></div>
+        <p class="hint" style="margin:0">Voltar: um toque sobe algumas linhas; segurando, sobe direto e, ao soltar, continua descendo. Pausar / continuar: segurando, avança rápido. Avançar: um toque desce algumas linhas.</p>
+        <div class="row-actions">
+          <button class="ghost resetKeys" type="button">Voltar ao padrão</button>
+        </div>
+        <p class="hint" style="margin:0">Se nada aparecer quando você pisa, troque o modo do pedal (a cor da luz). Os modos de setas, paginação e rolagem funcionam. O de volume não: o iPhone não deixa páginas lerem os botões de volume.</p>
+      </section>
+
+      <section class="card">
+        <h2>Configurações salvas</h2>
+        <form class="saveForm">
+          <input class="presetName" id="presetName" maxlength="40" placeholder="Nome, ex.: iPad no tripé" autocomplete="off">
+          <button class="primary" type="submit">Salvar</button>
+        </form>
+        <ul class="presets"></ul>
+      </section>
+    </div>
+  </div>
+</main>
+
+<div id="reader" hidden>
+  <div id="stage" tabindex="-1">
+    <div id="flip">
+      <div id="scroller"><div id="content"></div></div>
+      <div id="shade"></div>
+      <div id="mark"><i class="l"></i><i class="r"></i></div>
+    </div>
+  </div>
+  <div id="hud">
+    <button id="exit" class="ghost" type="button">Editar</button>
+    <button id="restart" class="ghost" type="button">Do início</button>
+    <button id="openPanel" class="ghost" type="button">Ajustes</button>
+    <span class="grow"></span>
+    <div class="hg"><span>Vel.</span><button type="button" data-step="speed:-0.5" aria-label="Diminuir velocidade">−</button><b id="hSpeed"></b><button type="button" data-step="speed:0.5" aria-label="Aumentar velocidade">+</button></div>
+    <div class="hg"><span>Letra</span><button type="button" data-step="font:-4" aria-label="Diminuir letra">−</button><b id="hFont"></b><button type="button" data-step="font:4" aria-label="Aumentar letra">+</button></div>
+    <button id="play" class="primary" type="button">Rolar</button>
+  </div>
+  <aside id="panel" hidden aria-label="Ajustes da leitura">
+    <div class="panel-head">
+      <strong>Ajustes</strong>
+      <span class="grow"></span>
+      <button id="pPlay" class="primary" type="button">Rolar</button>
+      <button id="panelClose" class="ghost" type="button">Fechar</button>
+    </div>
+    <div class="panel-body">
+      <div id="p-sliders" class="stack"></div>
+      <div class="inline"><span>Alinhamento</span>
+        <div class="seg align"><button type="button" data-v="left">Esquerda</button><button type="button" data-v="center">Centro</button></div>
+      </div>
+      <div id="p-toggles" class="stack"></div>
+      <hr class="divider">
+      <h2>Pedal</h2>
+      <p class="hint" style="margin:0">Pise no pedal: o botão que você pisou acende aqui. Escolha o que cada um faz.</p>
+      <div class="pedal-map"></div>
+      <div class="row-actions"><button class="ghost resetKeys" type="button">Voltar ao padrão</button></div>
+      <hr class="divider">
+      <h2>Configurações salvas</h2>
+      <form class="saveForm">
+        <input class="presetName" id="p-presetName" maxlength="40" placeholder="Nome, ex.: iPad no tripé" autocomplete="off">
+        <button class="primary" type="submit">Salvar</button>
+      </form>
+      <ul class="presets"></ul>
+    </div>
+  </aside>
+  <div id="progress"><i id="bar"></i></div>
+  <div id="toast"></div>
+  <div id="count" hidden></div>
+  <div id="cover">
+    <button id="tapStart" class="primary" type="button">Toque pra começar</button>
+    <p>Depois desse toque o pedal já comanda. Tocar na tela pausa; arrastar com o dedo move o texto.</p>
+  </div>
+</div>
+
+<script>
+(() => {
+  const $ = s => document.querySelector(s);
+  const KEY = 'teleprompter-pedal-v1';
+  const LH = 1.4;
+  const DEF = {
+    speed: 7, font: 56, margin: 8, mVert: 0, line: 30, back: 2, align: 'left',
+    flipH: false, flipV: false, bold: true, resume: true, countdown: true,
+    map: {
+      ArrowUp: 'back', ArrowLeft: 'back', PageUp: 'back', WheelUp: 'back',
+      ArrowDown: 'pause', ArrowRight: 'pause', PageDown: 'pause', Space: 'pause', Enter: 'pause', MediaPlayPause: 'pause', WheelDown: 'pause'
+    }
+  };
+  const SAMPLE = `[Texto de exemplo. Apague e cole o seu roteiro.]
+
+Este é o seu teleprompter. O texto desce sozinho, numa velocidade constante, e as setas amarelas marcam a linha que você está lendo.
+
+Errou uma frase? Dê um toque no pedal de voltar. O texto sobe duas linhas e continua descendo sozinho, sem precisar apertar o play.
+
+Se precisar voltar mais, segure o pedal. O texto sobe enquanto você segura. Quando soltar, ele volta a descer a partir dali.
+
+O outro pedal pausa e continua. Segurando esse, o texto avança mais rápido.
+
+Na tela, um toque também pausa, e arrastar com o dedo leva o texto pra cima ou pra baixo.
+
+Ajuste a velocidade, o tamanho da letra e a margem até ficar confortável, e salve com um nome, por exemplo iPad no tripé ou celular na mão.`;
+
+  const clone = o => JSON.parse(JSON.stringify(o));
+  function load() { try { const v = JSON.parse(localStorage.getItem(KEY)); return v && typeof v === 'object' ? v : {}; } catch (e) { return {}; } }
+  const stored = load();
+  let S = Object.assign(clone(DEF), stored.current || {});
+  if (S.keysBack && !(stored.current || {}).map) {   // versão antiga guardava duas listas de teclas
+    S.map = Object.assign(clone(DEF.map), Object.fromEntries([...S.keysBack.map(k => [k, 'back']), ...(S.keysPause || []).map(k => [k, 'pause'])]));
+  }
+  delete S.keysBack; delete S.keysPause;
+  let presets = Array.isArray(stored.presets) ? stored.presets : [];
+  let text = typeof stored.text === 'string' ? stored.text : SAMPLE;
+  let seen = Array.isArray(stored.seen) ? stored.seen : [];   // sinais que o pedal já mandou neste aparelho
+  function save() { try { localStorage.setItem(KEY, JSON.stringify({ current: S, presets, text, seen })); } catch (e) {} }
+
+  const fmt = v => String(v).replace('.', ',');
+
+  /* ---------- Ajustes ---------- */
+  const SLIDERS = [
+    ['speed', 'Velocidade', 1, 20, 0.5, v => fmt(v)],
+    ['font', 'Tamanho da letra', 24, 140, 2, v => v + ' px'],
+    ['margin', 'Margem nas laterais', 0, 30, 1, v => v + '%'],
+    ['mVert', 'Margem em cima e embaixo', 0, 40, 1, v => v + '%'],
+    ['line', 'Altura da linha de leitura', 10, 60, 1, v => v + '% do topo'],
+    ['back', 'Quanto um toque volta ou avança', 1, 8, 1, v => v + (v > 1 ? ' linhas' : ' linha')]
+  ];
+  const TOGGLES = [
+    ['flipH', 'Espelhar na horizontal'],
+    ['flipV', 'Espelhar na vertical'],
+    ['bold', 'Letra em negrito'],
+    ['resume', 'Depois de voltar, continuar descendo mesmo se estiver pausado'],
+    ['countdown', 'Contagem 3, 2, 1 antes de começar']
+  ];
+  /* Os mesmos controles aparecem em dois lugares: na tela de ajustes ('') e no painel da leitura ('p') */
+  const PREFIXES = ['', 'p'];
+  function buildControls(pre, sliders, toggles) {
+    SLIDERS.forEach(([k, label, min, max, step]) => {
+      const d = document.createElement('div'); d.className = 'ctl';
+      d.innerHTML = `<div class="ctl-top"><label for="${pre}r-${k}">${label}</label><output id="${pre}o-${k}"></output></div><input type="range" id="${pre}r-${k}" min="${min}" max="${max}" step="${step}">`;
+      sliders.append(d);
+      d.querySelector('input').addEventListener('input', e => { S[k] = +e.target.value; changed(); });
+    });
+    TOGGLES.forEach(([k, label]) => {
+      const l = document.createElement('label'); l.className = 'switch';
+      l.innerHTML = `<span>${label}</span><input type="checkbox" id="${pre}t-${k}">`;
+      toggles.append(l);
+      l.querySelector('input').addEventListener('change', e => { S[k] = e.target.checked; changed(); });
+    });
+  }
+  buildControls('', $('#sliders'), $('#toggles'));
+  buildControls('p', $('#p-sliders'), $('#p-toggles'));
+  document.querySelectorAll('.align').forEach(g => g.addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; S.align = b.dataset.v; changed(); }));
+
+  function syncControls() {
+    PREFIXES.forEach(pre => {
+      SLIDERS.forEach(([k, , , , , show]) => { $('#' + pre + 'r-' + k).value = S[k]; $('#' + pre + 'o-' + k).textContent = show(S[k]); });
+      TOGGLES.forEach(([k]) => { $('#' + pre + 't-' + k).checked = !!S[k]; });
+    });
+    document.querySelectorAll('.align button').forEach(b => b.setAttribute('aria-pressed', b.dataset.v === S.align));
+    renderPedal(); renderPresets();
+  }
+  function changed() {
+    save(); syncControls();
+    if (!reader.hidden) { layout(true); updateHud(); }
+  }
+
+  /* ---------- Texto ---------- */
+  const txt = $('#txt');
+  txt.value = text;
+  function wordCount() { const n = (txt.value.match(/\S+/g) || []).length; $('#wc').textContent = n + (n === 1 ? ' palavra' : ' palavras'); }
+  txt.addEventListener('input', () => { text = txt.value; save(); wordCount(); });
+  $('#clear').addEventListener('click', () => { txt.value = ''; text = ''; save(); wordCount(); txt.focus(); });
+  wordCount();
+
+  /* ---------- Pedal ---------- */
+  const LABEL = { ArrowUp: '↑ seta pra cima', ArrowDown: '↓ seta pra baixo', ArrowLeft: '← seta esquerda', ArrowRight: '→ seta direita', PageUp: 'Page Up', PageDown: 'Page Down', Space: 'Espaço', Enter: 'Enter', Escape: 'Esc', MediaPlayPause: 'Play/Pause', WheelUp: 'Rolagem pra cima', WheelDown: 'Rolagem pra baixo' };
+  const ACTS = [['back', 'Voltar'], ['pause', 'Pausar / continuar'], ['fwd', 'Avançar'], ['none', 'Sem função']];
+  const IGNORE = ['Shift', 'Control', 'Alt', 'Meta', 'Tab', 'CapsLock', 'Escape'];
+  const label = id => LABEL[id] || id;
+  const escHtml = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  function keyId(e) {
+    if (e.key === ' ' || e.code === 'Space') return 'Space';
+    if (!e.key || e.key === 'Unidentified') return e.code || ('Tecla ' + e.keyCode);
+    return e.key.length === 1 ? e.key.toUpperCase() : e.key;
+  }
+  function actionFor(id) { const a = S.map[id]; return a && a !== 'none' ? a : null; }
+  function renderPedal() {
+    document.querySelectorAll('.pedal-map').forEach(box => {
+      if (!seen.length) { box.innerHTML = '<p class="hint" style="margin:0">Nenhum sinal ainda. Pise em cada botão do pedal.</p>'; return; }
+      box.innerHTML = seen.map(id => `<label class="sig" data-sig="${escHtml(id)}"><span>${escHtml(label(id))}</span><select data-sig="${escHtml(id)}">${ACTS.map(([v, t]) => `<option value="${v}"${(S.map[id] || 'none') === v ? ' selected' : ''}>${t}</option>`).join('')}</select></label>`).join('');
+    });
+  }
+  document.querySelectorAll('.pedal-map').forEach(box => box.addEventListener('change', e => {
+    const sel = e.target.closest('select[data-sig]'); if (!sel) return;
+    S.map = Object.assign({}, S.map, { [sel.dataset.sig]: sel.value });
+    changed();
+  }));
+  document.querySelectorAll('.resetKeys').forEach(b => b.addEventListener('click', () => { S.map = clone(DEF.map); seen = []; changed(); }));
+  let flashT;
+  function signal(id) {   // registra o sinal que chegou e acende a linha dele
+    if (!seen.includes(id)) { seen.push(id); if (seen.length > 8) seen.shift(); save(); renderPedal(); }
+    document.querySelectorAll('.sig').forEach(r => r.classList.toggle('hit', r.dataset.sig === id));
+    clearTimeout(flashT); flashT = setTimeout(() => document.querySelectorAll('.sig.hit').forEach(r => r.classList.remove('hit')), 700);
+  }
+
+  /* ---------- Configurações salvas ---------- */
+  const SKEYS = Object.keys(DEF);
+  const pick = o => { const r = {}; SKEYS.forEach(k => r[k] = o[k]); return r; };
+  const same = (a, b) => JSON.stringify(pick(a)) === JSON.stringify(pick(b));
+  function summary(s) {
+    const parts = ['Vel. ' + fmt(s.speed), 'Letra ' + s.font, 'Margem ' + s.margin + '%'];
+    if (s.flipH || s.flipV) parts.push('espelhado');
+    if (s.align === 'center') parts.push('centro');
+    return parts.join(' · ');
+  }
+  function renderPresets() {
+    document.querySelectorAll('.presets').forEach(ul => {
+      ul.innerHTML = '';
+      if (!presets.length) { ul.innerHTML = '<li class="empty">Nenhuma ainda. Deixe tudo do seu jeito, dê um nome e toque em Salvar.</li>'; return; }
+      presets.forEach((p, i) => {
+        const li = document.createElement('li');
+        const on = same(p.s, S);
+        if (on) li.className = 'active';
+        li.innerHTML = `<div class="pname"></div><div class="psum">${summary(p.s)}</div><div class="pbtns"><button class="ghost" type="button" data-use="${i}">Usar</button><button class="ghost" type="button" data-del="${i}">Apagar</button></div>`;
+        li.querySelector('.pname').textContent = p.name;
+        if (on) li.querySelector('.pname').insertAdjacentHTML('beforeend', '<em>em uso</em>');
+        ul.append(li);
+      });
+    });
+  }
+  document.querySelectorAll('.saveForm').forEach(form => form.addEventListener('submit', e => {
+    e.preventDefault();
+    const input = form.querySelector('.presetName');
+    const name = input.value.trim() || ('Configuração ' + (presets.length + 1));
+    const i = presets.findIndex(p => p.name.toLowerCase() === name.toLowerCase());
+    const entry = { name, s: pick(clone(S)) };
+    if (i >= 0) presets[i] = entry; else presets.push(entry);
+    input.value = ''; input.blur();
+    save(); renderPresets();
+  }));
+  document.querySelectorAll('.presets').forEach(ul => ul.addEventListener('click', e => {
+    const use = e.target.closest('[data-use]'), del = e.target.closest('[data-del]');
+    if (use) { S = Object.assign(clone(DEF), clone(presets[+use.dataset.use].s)); changed(); }
+    if (del) {
+      if (!del.classList.contains('danger')) {
+        del.classList.add('danger'); del.textContent = 'Confirmar';
+        setTimeout(() => { if (del.isConnected) { del.classList.remove('danger'); del.textContent = 'Apagar'; } }, 3000);
+        return;
+      }
+      presets.splice(+del.dataset.del, 1); save(); renderPresets();
+    }
+  }));
+
+  /* ---------- Leitura ---------- */
+  const setup = $('#setup'), reader = $('#reader'), stage = $('#stage'), flip = $('#flip'), scroller = $('#scroller'),
+        content = $('#content'), shade = $('#shade'), mark = $('#mark'), hud = $('#hud'), cover = $('#cover'),
+        count = $('#count'), bar = $('#bar'), toastEl = $('#toast'), panel = $('#panel');
+  let pos = 0, maxPos = 0, playing = false, counting = false, cdTimer = null;
+  let jump = null;        // animação curta do toque em voltar
+  let hold = null;        // 'back' | 'fwd' enquanto o pedal está seguro
+  let holdSince = 0;
+  let drag = null;
+  let lock = null;
+
+  const lineH = () => S.font * LH;
+  const speedPx = () => S.speed * 5 * (S.font / 48);
+  const fastPx = () => Math.max(lineH() * 5, speedPx() * 6);
+  const clamp = v => Math.max(0, Math.min(maxPos, v));
+
+  const esc = s => s.replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  function render() {
+    const paras = text.replace(/\r/g, '').split(/\n\s*\n/).map(p => p.trim()).filter(Boolean);
+    content.innerHTML = paras.length
+      ? paras.map(p => '<p>' + esc(p).replace(/\[([^\]\n]*)\]/g, '<span class="note">[$1]</span>').replace(/\n/g, '<br>') + '</p>').join('')
+      : '<p class="note">Sem texto. Toque em Editar e cole o roteiro.</p>';
+  }
+  function layout(keepRatio) {
+    const ratio = maxPos ? pos / maxPos : 0;
+    stage.style.top = stage.style.bottom = S.mVert + '%';
+    const H = stage.clientHeight, top = H * S.line / 100;
+    content.style.fontSize = S.font + 'px';
+    content.style.fontWeight = S.bold ? 700 : 400;
+    content.style.textAlign = S.align;
+    content.style.paddingTop = (top - lineH() / 2 + S.font * 0.2) + 'px';
+    content.style.paddingBottom = (H - top) + 'px';
+    content.style.paddingLeft = `calc(${S.margin}% + max(20px, env(safe-area-inset-left, 0px)))`;
+    content.style.paddingRight = `calc(${S.margin}% + max(20px, env(safe-area-inset-right, 0px)))`;
+    flip.style.transform = `scale(${S.flipH ? -1 : 1}, ${S.flipV ? -1 : 1})`;
+    mark.style.top = top + 'px';
+    shade.style.height = Math.max(0, top - lineH() * 0.55) + 'px';
+    maxPos = Math.max(0, content.offsetHeight - H);
+    if (keepRatio) pos = clamp(ratio * maxPos); else pos = clamp(pos);
+    paint();
+  }
+  function paint() {
+    scroller.style.transform = `translate3d(0, ${-pos}px, 0)`;
+    bar.style.width = (maxPos ? (pos / maxPos) * 100 : 0) + '%';
+  }
+
+  let toastT;
+  function toast(msg, ms = 1100) {
+    toastEl.textContent = msg; toastEl.classList.add('on');
+    clearTimeout(toastT); if (ms) toastT = setTimeout(() => toastEl.classList.remove('on'), ms);
+  }
+  function updateHud() {
+    $('#play').textContent = $('#pPlay').textContent = playing ? 'Pausar' : 'Rolar';
+    $('#hSpeed').textContent = fmt(S.speed);
+    $('#hFont').textContent = S.font;
+    hud.classList.toggle('show', !playing && !counting && cover.hidden && panel.hidden);
+  }
+  function setPlaying(v) {
+    if (v && pos >= maxPos - 1) pos = maxPos;
+    playing = v; updateHud();
+  }
+
+  function openReader() {
+    text = txt.value; save();
+    render();
+    setup.hidden = true; reader.hidden = false;
+    document.documentElement.classList.add('reading');
+    pos = 0; playing = false; jump = null; hold = null;
+    cover.hidden = false;
+    layout(false); updateHud();
+    $('#tapStart').focus({ preventScroll: true });
+  }
+  function closeReader() {
+    cancelCount(); playing = false; hold = null; jump = null;
+    panel.hidden = true; reader.classList.remove('editing');
+    reader.hidden = true; setup.hidden = false;
+    document.documentElement.classList.remove('reading');
+    syncControls();
+    if (lock) { lock.release().catch(() => {}); lock = null; }
+  }
+  async function wake() { try { if (navigator.wakeLock) lock = await navigator.wakeLock.request('screen'); } catch (e) {} }
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && !reader.hidden) wake(); });
+
+  function begin() {
+    if (cover.hidden) return;
+    cover.hidden = true;
+    stage.focus({ preventScroll: true });
+    wake();
+    if (S.countdown) countdown(); else setPlaying(true);
+    updateHud();
+  }
+  function countdown() {
+    counting = true; let n = 3;
+    count.hidden = false; count.textContent = n;
+    const tick = () => {
+      if (!counting) return;
+      n--;
+      if (n <= 0) { cancelCount(); setPlaying(true); }
+      else { count.textContent = n; cdTimer = setTimeout(tick, 800); }
+    };
+    cdTimer = setTimeout(tick, 800);
+  }
+  function cancelCount() { clearTimeout(cdTimer); counting = false; count.hidden = true; }
+
+  function stepBack() {
+    cancelCount();
+    const base = jump ? jump.to : pos;
+    jump = { from: pos, to: clamp(base - lineH() * S.back), t0: performance.now(), dur: 260 };
+    if (S.resume) setPlaying(true);
+    toast('Voltou ' + S.back + (S.back > 1 ? ' linhas' : ' linha'), 700);
+  }
+  function stepFwd() {
+    cancelCount();
+    const base = jump ? jump.to : pos;
+    jump = { from: pos, to: clamp(base + lineH() * S.back), t0: performance.now(), dur: 260 };
+    toast('Avançou ' + S.back + (S.back > 1 ? ' linhas' : ' linha'), 700);
+  }
+  function tapAction(act) {
+    if (act === 'back') stepBack();
+    else if (act === 'fwd') stepFwd();
+    else togglePlay();
+  }
+  function togglePlay() {
+    if (counting) { cancelCount(); setPlaying(true); toast('Rolando', 700); return; }
+    setPlaying(!playing);
+    toast(playing ? 'Rolando' : 'Pausado', 800);
+  }
+  function startHold(act) {
+    cancelCount(); jump = null;
+    hold = act === 'back' ? 'back' : 'fwd'; holdSince = performance.now();
+    toast(hold === 'back' ? 'Voltando…' : 'Avançando…', 0);
+  }
+  function endHold() {
+    const was = hold; hold = null;
+    toastEl.classList.remove('on');
+    if (was === 'back' && S.resume) setPlaying(true);
+    toast(playing ? 'Rolando' : 'Pausado', 700);
+  }
+
+  /* Teclas: toque = apertou e soltou rápido; segurar = passou de 260 ms */
+  const keys = {};
+  window.addEventListener('keydown', e => {
+    const id = keyId(e);
+    if (e.target.matches && e.target.matches('input:not([type]), input[type=text], textarea')) return;
+    if (id === 'Escape' && !reader.hidden) { if (panel.hidden) closeReader(); else closePanel(); return; }
+    if (IGNORE.includes(id)) return;
+    if (!e.repeat) signal(id);
+    if (reader.hidden) return;
+    const act = actionFor(id);
+    if (!act) {
+      if (!e.repeat) toast('Sinal ' + label(id) + ' sem função. Escolha em Ajustes › Pedal.', 2200);
+      return;
+    }
+    e.preventDefault();
+    if (!cover.hidden) { if (!e.repeat) begin(); return; }
+    if (e.repeat || keys[id]) { holdSince = performance.now(); return; }
+    const st = keys[id] = { act, held: false };
+    st.timer = setTimeout(() => { st.held = true; startHold(act); }, 260);
+  });
+  window.addEventListener('keyup', e => {
+    const id = keyId(e), st = keys[id];
+    if (!st) return;
+    e.preventDefault();
+    clearTimeout(st.timer); delete keys[id];
+    if (st.held) endHold();
+    else tapAction(st.act);
+  });
+  window.addEventListener('blur', () => { Object.keys(keys).forEach(k => clearTimeout(keys[k].timer)); for (const k in keys) delete keys[k]; if (hold) endHold(); });
+
+  /* Dedo e roda do mouse */
+  const dirV = () => (S.flipV ? -1 : 1);
+  stage.addEventListener('pointerdown', e => {
+    if (!cover.hidden) return;
+    drag = { y: e.clientY, p: pos, moved: false };
+    try { stage.setPointerCapture(e.pointerId); } catch (err) {}
+  });
+  stage.addEventListener('pointermove', e => {
+    if (!drag) return;
+    const dy = (e.clientY - drag.y) * dirV();
+    if (Math.abs(dy) > 8) drag.moved = true;
+    if (drag.moved) { jump = null; pos = clamp(drag.p - dy); paint(); }
+  });
+  stage.addEventListener('pointerup', () => { if (!drag) return; const moved = drag.moved; drag = null; if (!moved) togglePlay(); stage.focus({ preventScroll: true }); });
+  stage.addEventListener('pointercancel', () => { drag = null; });
+  /* Pedal no modo rolagem: cada pisada chega como uma rajada de eventos de roda.
+     Rajada curta = toque; rajada que dura mais de 450 ms = segurando. */
+  let wheel = null;
+  window.addEventListener('wheel', e => {
+    if (e.target.closest && e.target.closest('textarea, .panel-body')) return;
+    const id = e.deltaY < 0 ? 'WheelUp' : e.deltaY > 0 ? 'WheelDown' : null;
+    if (!id) return;
+    if (!reader.hidden) e.preventDefault();
+    const now = performance.now();
+    if (wheel && wheel.id === id) { wheel.last = now; return; }
+    if (wheel) finishWheel();
+    wheel = { id, t0: now, last: now, held: false };
+    signal(id);
+  }, { passive: false });
+  function checkWheel(now) {
+    if (!wheel) return;
+    if (now - wheel.last > 200) { finishWheel(); return; }
+    if (!wheel.held && now - wheel.t0 > 450 && !reader.hidden && cover.hidden) {
+      const act = actionFor(wheel.id);
+      if (act) { wheel.held = true; startHold(act); }
+    }
+  }
+  function finishWheel() {
+    const w = wheel; wheel = null;
+    if (reader.hidden) return;
+    const act = actionFor(w.id);
+    if (!act) { toast('Sinal ' + label(w.id) + ' sem função. Escolha em Ajustes › Pedal.', 2200); return; }
+    if (!cover.hidden) begin();
+    else if (w.held) endHold();
+    else tapAction(act);
+  }
+
+  /* Barra de cima */
+  $('#tapStart').addEventListener('click', begin);
+  cover.addEventListener('click', e => { if (e.target === cover) begin(); });
+  $('#play').addEventListener('click', () => { togglePlay(); stage.focus({ preventScroll: true }); });
+  $('#exit').addEventListener('click', closeReader);
+  function openPanel() { panel.hidden = false; reader.classList.add('editing'); syncControls(); updateHud(); }
+  function closePanel() { panel.hidden = true; reader.classList.remove('editing'); updateHud(); stage.focus({ preventScroll: true }); }
+  $('#openPanel').addEventListener('click', openPanel);
+  $('#panelClose').addEventListener('click', closePanel);
+  $('#pPlay').addEventListener('click', togglePlay);
+  $('#restart').addEventListener('click', () => { jump = null; pos = 0; paint(); stage.focus({ preventScroll: true }); });
+  hud.addEventListener('click', e => {
+    const b = e.target.closest('[data-step]'); if (!b) return;
+    const [k, d] = b.dataset.step.split(':');
+    const [, , min, max] = SLIDERS.find(s => s[0] === k);
+    S[k] = Math.max(min, Math.min(max, Math.round((S[k] + +d) * 10) / 10));
+    save(); layout(true); updateHud();
+    stage.focus({ preventScroll: true });
+  });
+  $('#go').addEventListener('click', openReader);
+  window.addEventListener('resize', () => { if (!reader.hidden) layout(true); });
+
+  /* Laço de rolagem */
+  let last = null;
+  function frame(t) {
+    const dt = last == null ? 0 : Math.min(0.05, (t - last) / 1000);
+    last = t;
+    checkWheel(performance.now());
+    if (!reader.hidden && !drag) {
+      if (hold && performance.now() - holdSince > 10000) endHold();
+      if (jump) {
+        const k = Math.min(1, (performance.now() - jump.t0) / jump.dur);
+        pos = jump.from + (jump.to - jump.from) * (1 - Math.pow(1 - k, 3));
+        if (k >= 1) jump = null;
+      } else if (hold === 'back') pos -= fastPx() * dt;
+      else if (hold === 'fwd') pos += fastPx() * dt;
+      else if (playing && !counting) pos += speedPx() * dt;
+      pos = clamp(pos);
+      if (playing && !hold && !jump && maxPos > 0 && pos >= maxPos) { setPlaying(false); toast('Fim do texto', 1500); }
+      paint();
+    }
+    requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+
+  syncControls();
+})();
+</script>
+
+</body>
+</html>
