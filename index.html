@@ -807,7 +807,7 @@ Ajuste a velocidade, o tamanho da letra e a margem até ficar confortável, e sa
     save();
   }
   function paintTimer() {
-    const t = S.showTime && cover.hidden ? fmtTime(elapsed) + ' · faltam ' + fmtTime((maxPos - pos) / speedPx()) : '';
+    const t = S.showTime && cover.hidden ? fmtTime(elapsed) : '';
     if (t !== shownTime) { $('#timer').textContent = shownTime = t; }
   }
 
