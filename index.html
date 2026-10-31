@@ -67,6 +67,16 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
 #txt { width: 100%; min-height: 46vh; resize: vertical; background: var(--bg); border: 1px solid var(--line); border-radius: 10px; padding: 14px; font-family: var(--read-face); font-size: 1.05rem; line-height: 1.55; box-sizing: border-box; }
 .row-actions { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
 .hint { color: var(--muted); font-size: 0.85rem; }
+.row-actions .grow { flex: 1; }
+.script-list { display: flex; flex-wrap: wrap; gap: 6px; }
+.script-list button { background: var(--bg); border: 1px solid var(--line); border-radius: 999px; padding: 6px 14px; color: var(--muted); font-weight: 500; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.script-list button[aria-pressed=true] { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); font-weight: 600; }
+.script-meta { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 10px; }
+@media (max-width: 520px) { .script-meta { grid-template-columns: 1fr; } }
+.field { display: grid; gap: 4px; min-width: 0; }
+.field > span { font-size: 0.8rem; color: var(--muted); }
+.field input, .field select { background: var(--bg); border: 1px solid var(--line); border-radius: 9px; padding: 9px 12px; font-family: var(--ui); font-size: 16px; color: var(--fg); min-width: 0; width: 100%; box-sizing: border-box; }
+.hud-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); font-size: 0.9rem; text-align: center; }
 
 .ctl { display: grid; gap: 6px; }
 .ctl-top { display: flex; justify-content: space-between; gap: 10px; }
@@ -162,12 +172,20 @@ input[type=range] { width: 100%; accent-color: var(--accent); margin: 0; height:
 
   <div class="grid">
     <section class="card text-card">
-      <div class="sec-head"><h2>Texto</h2><span id="wc" class="meta"></span></div>
+      <div class="sec-head"><h2>Roteiros</h2><button id="newScript" class="ghost" type="button">+ Novo roteiro</button></div>
+      <div class="script-list" id="scriptList"></div>
+      <div class="script-meta">
+        <label class="field"><span>Nome do roteiro</span><input id="scriptName" maxlength="60" autocomplete="off" placeholder="Ex.: Dra. Ana, vídeo 1"></label>
+        <label class="field"><span>Configuração ao ler</span><select id="scriptPreset"></select></label>
+      </div>
       <textarea id="txt" spellcheck="false" placeholder="Cole aqui o texto do roteiro"></textarea>
       <div class="row-actions">
+        <span id="wc" class="meta"></span>
+        <span class="grow"></span>
         <button id="clear" class="ghost" type="button">Limpar texto</button>
-        <span class="hint">Trechos entre [colchetes] aparecem pequenos e apagados: servem de nota pra você, não pra ler.</span>
+        <button id="delScript" class="ghost" type="button">Apagar roteiro</button>
       </div>
+      <span class="hint">Trechos entre [colchetes] aparecem pequenos e apagados: servem de nota pra você, não pra ler. A configuração ligada ao roteiro entra sozinha quando você começa a ler, assim cada pessoa lê na velocidade e no tamanho dela.</span>
     </section>
 
     <div class="side">
@@ -216,7 +234,7 @@ input[type=range] { width: 100%; accent-color: var(--accent); margin: 0; height:
     <button id="exit" class="ghost" type="button">Editar</button>
     <button id="restart" class="ghost" type="button">Do início</button>
     <button id="openPanel" class="ghost" type="button">Ajustes</button>
-    <span class="grow"></span>
+    <span class="hud-name" id="hName"></span>
     <div class="hg"><span>Vel.</span><button type="button" data-step="speed:-0.5" aria-label="Diminuir velocidade">−</button><b id="hSpeed"></b><button type="button" data-step="speed:0.5" aria-label="Aumentar velocidade">+</button></div>
     <div class="hg"><span>Letra</span><button type="button" data-step="font:-4" aria-label="Diminuir letra">−</button><b id="hFont"></b><button type="button" data-step="font:4" aria-label="Aumentar letra">+</button></div>
     <button id="play" class="primary" type="button">Rolar</button>
@@ -229,6 +247,7 @@ input[type=range] { width: 100%; accent-color: var(--accent); margin: 0; height:
       <button id="panelClose" class="ghost" type="button">Fechar</button>
     </div>
     <div class="panel-body">
+      <label class="field"><span>Roteiro</span><select id="pScript"></select></label>
       <div id="p-sliders" class="stack"></div>
       <div class="inline"><span>Alinhamento</span>
         <div class="seg align"><button type="button" data-v="left">Esquerda</button><button type="button" data-v="center">Centro</button></div>
@@ -293,9 +312,14 @@ Ajuste a velocidade, o tamanho da letra e a margem até ficar confortável, e sa
   }
   delete S.keysBack; delete S.keysPause;
   let presets = Array.isArray(stored.presets) ? stored.presets : [];
-  let text = typeof stored.text === 'string' ? stored.text : SAMPLE;
+  const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+  // cada roteiro: { id, name, text, preset } — preset é o nome de uma configuração salva ('' = usar a atual)
+  let scripts = Array.isArray(stored.scripts) && stored.scripts.length ? stored.scripts
+    : [typeof stored.text === 'string' ? { id: uid(), name: 'Roteiro 1', text: stored.text, preset: '' } : { id: uid(), name: 'Exemplo', text: SAMPLE, preset: '' }];
+  let currentId = scripts.some(s => s.id === stored.currentId) ? stored.currentId : scripts[0].id;
+  const cur = () => scripts.find(s => s.id === currentId) || scripts[0];
   let seen = Array.isArray(stored.seen) ? stored.seen : [];   // sinais que o pedal já mandou neste aparelho
-  function save() { try { localStorage.setItem(KEY, JSON.stringify({ current: S, presets, text, seen })); } catch (e) {} }
+  function save() { try { localStorage.setItem(KEY, JSON.stringify({ current: S, presets, scripts, currentId, seen })); } catch (e) {} }
 
   const fmt = v => String(v).replace('.', ',');
 
@@ -348,12 +372,62 @@ Ajuste a velocidade, o tamanho da letra e a margem até ficar confortável, e sa
     if (!reader.hidden) { layout(true); updateHud(); }
   }
 
-  /* ---------- Texto ---------- */
-  const txt = $('#txt');
-  txt.value = text;
+  /* ---------- Roteiros ---------- */
+  const txt = $('#txt'), scriptName = $('#scriptName');
+  const nameOf = s => s.name.trim() || 'Sem nome';
   function wordCount() { const n = (txt.value.match(/\S+/g) || []).length; $('#wc').textContent = n + (n === 1 ? ' palavra' : ' palavras'); }
-  txt.addEventListener('input', () => { text = txt.value; save(); wordCount(); });
-  $('#clear').addEventListener('click', () => { txt.value = ''; text = ''; save(); wordCount(); txt.focus(); });
+  function renderScriptList() {
+    $('#scriptList').innerHTML = '';
+    scripts.forEach(s => {
+      const b = document.createElement('button');
+      b.type = 'button'; b.dataset.id = s.id; b.textContent = nameOf(s);
+      b.setAttribute('aria-pressed', s.id === currentId);
+      $('#scriptList').append(b);
+    });
+    const opts = scripts.map(s => `<option value="${s.id}"${s.id === currentId ? ' selected' : ''}>${escHtml(nameOf(s))}</option>`).join('');
+    $('#pScript').innerHTML = opts;
+  }
+  function renderScripts() {
+    renderScriptList();
+    if (document.activeElement !== scriptName) scriptName.value = cur().name;
+    const linked = cur().preset;
+    $('#scriptPreset').innerHTML = '<option value="">A que estiver em uso</option>' +
+      presets.map(p => `<option value="${escHtml(p.name)}"${p.name === linked ? ' selected' : ''}>${escHtml(p.name)}</option>`).join('') +
+      (linked && !presets.some(p => p.name === linked) ? `<option value="${escHtml(linked)}" selected>${escHtml(linked)} (apagada)</option>` : '');
+  }
+  function selectScript(id) {
+    currentId = id;
+    txt.value = cur().text;
+    wordCount(); renderScripts(); save();
+  }
+  function applyLinkedPreset() {
+    const p = presets.find(p => p.name === cur().preset);
+    if (p) { S = Object.assign(clone(DEF), clone(p.s), { map: S.map }); save(); syncControls(); }
+  }
+  $('#scriptList').addEventListener('click', e => { const b = e.target.closest('button[data-id]'); if (b) selectScript(b.dataset.id); });
+  $('#newScript').addEventListener('click', () => {
+    const s = { id: uid(), name: 'Roteiro ' + (scripts.length + 1), text: '', preset: cur().preset };
+    scripts.push(s); selectScript(s.id);
+    scriptName.focus(); scriptName.select();
+  });
+  scriptName.addEventListener('input', () => { cur().name = scriptName.value; save(); renderScriptList(); });
+  $('#scriptPreset').addEventListener('change', e => { cur().preset = e.target.value; save(); });
+  txt.addEventListener('input', () => { cur().text = txt.value; save(); wordCount(); });
+  $('#clear').addEventListener('click', () => { txt.value = ''; cur().text = ''; save(); wordCount(); txt.focus(); });
+  $('#delScript').addEventListener('click', e => {
+    const b = e.currentTarget;
+    if (!b.classList.contains('danger')) {
+      b.classList.add('danger'); b.textContent = 'Confirmar';
+      setTimeout(() => { b.classList.remove('danger'); b.textContent = 'Apagar roteiro'; }, 3000);
+      return;
+    }
+    b.classList.remove('danger'); b.textContent = 'Apagar roteiro';
+    const i = scripts.findIndex(s => s.id === currentId);
+    scripts.splice(i, 1);
+    if (!scripts.length) scripts.push({ id: uid(), name: 'Roteiro 1', text: '', preset: '' });
+    selectScript(scripts[Math.max(0, i - 1)].id);
+  });
+  txt.value = cur().text;
   wordCount();
 
   /* ---------- Pedal ---------- */
@@ -388,7 +462,7 @@ Ajuste a velocidade, o tamanho da letra e a margem até ficar confortável, e sa
   }
 
   /* ---------- Configurações salvas ---------- */
-  const SKEYS = Object.keys(DEF);
+  const SKEYS = Object.keys(DEF).filter(k => k !== 'map');   // o pedal é do aparelho, não entra nas configurações salvas
   const pick = o => { const r = {}; SKEYS.forEach(k => r[k] = o[k]); return r; };
   const same = (a, b) => JSON.stringify(pick(a)) === JSON.stringify(pick(b));
   function summary(s) {
@@ -411,6 +485,7 @@ Ajuste a velocidade, o tamanho da letra e a margem até ficar confortável, e sa
         ul.append(li);
       });
     });
+    renderScripts();   // a lista de configurações também aparece no roteiro
   }
   document.querySelectorAll('.saveForm').forEach(form => form.addEventListener('submit', e => {
     e.preventDefault();
@@ -424,7 +499,7 @@ Ajuste a velocidade, o tamanho da letra e a margem até ficar confortável, e sa
   }));
   document.querySelectorAll('.presets').forEach(ul => ul.addEventListener('click', e => {
     const use = e.target.closest('[data-use]'), del = e.target.closest('[data-del]');
-    if (use) { S = Object.assign(clone(DEF), clone(presets[+use.dataset.use].s)); changed(); }
+    if (use) { S = Object.assign(clone(DEF), clone(presets[+use.dataset.use].s), { map: S.map }); changed(); }
     if (del) {
       if (!del.classList.contains('danger')) {
         del.classList.add('danger'); del.textContent = 'Confirmar';
@@ -453,7 +528,7 @@ Ajuste a velocidade, o tamanho da letra e a margem até ficar confortável, e sa
 
   const esc = s => s.replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   function render() {
-    const paras = text.replace(/\r/g, '').split(/\n\s*\n/).map(p => p.trim()).filter(Boolean);
+    const paras = cur().text.replace(/\r/g, '').split(/\n\s*\n/).map(p => p.trim()).filter(Boolean);
     content.innerHTML = paras.length
       ? paras.map(p => '<p>' + esc(p).replace(/\[([^\]\n]*)\]/g, '<span class="note">[$1]</span>').replace(/\n/g, '<br>') + '</p>').join('')
       : '<p class="note">Sem texto. Toque em Editar e cole o roteiro.</p>';
@@ -490,6 +565,7 @@ Ajuste a velocidade, o tamanho da letra e a margem até ficar confortável, e sa
     $('#play').textContent = $('#pPlay').textContent = playing ? 'Pausar' : 'Rolar';
     $('#hSpeed').textContent = fmt(S.speed);
     $('#hFont').textContent = S.font;
+    $('#hName').textContent = nameOf(cur());
     hud.classList.toggle('show', !playing && !counting && cover.hidden && panel.hidden);
   }
   function setPlaying(v) {
@@ -498,7 +574,8 @@ Ajuste a velocidade, o tamanho da letra e a margem até ficar confortável, e sa
   }
 
   function openReader() {
-    text = txt.value; save();
+    cur().text = txt.value; save();
+    applyLinkedPreset();
     render();
     setup.hidden = true; reader.hidden = false;
     document.documentElement.classList.add('reading');
@@ -661,6 +738,13 @@ Ajuste a velocidade, o tamanho da letra e a margem até ficar confortável, e sa
   $('#openPanel').addEventListener('click', openPanel);
   $('#panelClose').addEventListener('click', closePanel);
   $('#pPlay').addEventListener('click', togglePlay);
+  $('#pScript').addEventListener('change', e => {
+    selectScript(e.target.value);
+    applyLinkedPreset();
+    cancelCount(); setPlaying(false); jump = null; hold = null; pos = 0;
+    render(); layout(false); updateHud();
+    toast(nameOf(cur()), 1200);
+  });
   $('#restart').addEventListener('click', () => { jump = null; pos = 0; paint(); stage.focus({ preventScroll: true }); });
   hud.addEventListener('click', e => {
     const b = e.target.closest('[data-step]'); if (!b) return;
