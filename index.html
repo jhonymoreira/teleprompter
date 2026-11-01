@@ -166,6 +166,33 @@ input[type=range] { width: 100%; accent-color: var(--accent); margin: 0; height:
   #panel { top: auto; left: 0; width: auto; max-height: 58%; border-left: 0; border-top: 1px solid var(--line); border-radius: 16px 16px 0 0; padding-top: 0; padding-left: env(safe-area-inset-left, 0px); }
 }
 
+/* ---------- Controle remoto ---------- */
+.top-btns { display: flex; gap: 8px; flex: none; }
+.rcOpen.on::before { content: ""; display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #5bd37a; margin-right: 7px; vertical-align: 1px; }
+html.remote .top .rcOpen, html.remote #go, html.remote #pedalCard { display: none; }
+html.remote #setup { padding-bottom: 240px; }
+#rc { position: fixed; inset: 0; z-index: 40; background: rgba(0, 0, 0, .65); display: grid; place-items: center; padding: 16px; font-family: var(--ui); }
+#rc[hidden], #rbar[hidden] { display: none; }
+.rc-card { width: min(420px, 100%); box-sizing: border-box; }
+.rc-code { font-family: var(--mono); font-size: 3rem; letter-spacing: .25em; padding-left: .25em; color: var(--accent); text-align: center; line-height: 1.1; }
+#rcJoinForm { display: flex; gap: 8px; }
+#rcJoinCode { flex: 1; min-width: 0; background: var(--bg); border: 1px solid var(--line); border-radius: 10px; padding: 11px 14px; font-family: var(--mono); font-size: 20px; letter-spacing: .2em; color: var(--fg); }
+#rbar { position: fixed; left: 0; right: 0; bottom: 0; z-index: 15; display: grid; gap: 10px; background: rgba(16, 18, 22, .97); border-top: 1px solid var(--line); padding: 12px max(16px, env(safe-area-inset-right, 0px)) calc(12px + env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px)); font-family: var(--ui); }
+.rb-status { display: flex; align-items: center; gap: 8px; font-size: 0.9rem; min-width: 0; }
+.rb-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); flex: none; }
+.rb-dot.on { background: #5bd37a; }
+#rbText { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#rbTime { font-family: var(--mono); font-variant-numeric: tabular-nums; color: var(--muted); }
+.rb-prog { height: 3px; background: var(--line); border-radius: 2px; overflow: hidden; }
+.rb-prog i { display: block; height: 100%; width: 0; background: var(--accent); }
+.rb-main { display: grid; grid-template-columns: 1fr 1.3fr 1fr; gap: 8px; }
+.rb-main button { height: 60px; font-size: 1.05rem; border-radius: 12px; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; touch-action: manipulation; }
+#rbar .ghost { background: var(--panel); }
+.rb-sub { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.rb-sub .grow { flex: 1; }
+#rbar button:disabled { color: #4b5058; }
+#rbar .primary:disabled { background: #5c4a22; }
+
 @media (prefers-reduced-motion: reduce) { #hud, #toast, .switch input, .switch input::after { transition: none; } }
 </style>
 
@@ -174,7 +201,10 @@ input[type=range] { width: 100%; accent-color: var(--accent); margin: 0; height:
 <main id="setup">
   <header class="top">
     <div class="brand"><span class="tally"></span><h1>Teleprompter com Pedal</h1></div>
-    <button id="go" class="primary" type="button">Começar a ler</button>
+    <div class="top-btns">
+      <button class="ghost rcOpen" type="button">Controle</button>
+      <button id="go" class="primary" type="button">Começar a ler</button>
+    </div>
   </header>
 
   <div class="grid">
@@ -207,7 +237,7 @@ input[type=range] { width: 100%; accent-color: var(--accent); margin: 0; height:
         <div id="toggles" style="display:grid;gap:12px"></div>
       </section>
 
-      <section class="card">
+      <section class="card" id="pedalCard">
         <h2>Pedal</h2>
         <p class="lead">Pise em cada botão do pedal. O sinal que ele manda aparece aqui embaixo, acende quando você pisa, e você escolhe o que cada um faz.</p>
         <div class="pedal-map"></div>
@@ -262,6 +292,9 @@ input[type=range] { width: 100%; accent-color: var(--accent); margin: 0; height:
       </div>
       <div id="p-toggles" class="stack"></div>
       <hr class="divider">
+      <h2>Controle remoto</h2>
+      <div class="row-actions"><span class="meta rcState"></span><span class="grow"></span><button class="ghost rcOpen" type="button">Abrir</button></div>
+      <hr class="divider">
       <h2>Pedal</h2>
       <p class="hint" style="margin:0">Pise no pedal: o botão que você pisou acende aqui. Escolha o que cada um faz.</p>
       <div class="pedal-map"></div>
@@ -282,6 +315,46 @@ input[type=range] { width: 100%; accent-color: var(--accent); margin: 0; height:
   <div id="cover">
     <button id="tapStart" class="primary" type="button">Toque pra começar</button>
     <p>Depois desse toque o pedal já comanda. Tocar na tela pausa; arrastar com o dedo move o texto.</p>
+  </div>
+</div>
+
+<div id="rc" hidden>
+  <section class="card rc-card" role="dialog" aria-label="Controle remoto">
+    <div class="sec-head"><h2>Controle remoto</h2><button class="ghost" id="rcClose" type="button">Fechar</button></div>
+    <div id="rcHome" class="stack">
+      <p class="lead">Use o celular pra controlar este teleprompter de longe: rolar, voltar, trocar o roteiro e mexer em todos os ajustes. Os dois aparelhos precisam de internet.</p>
+      <button class="primary" id="rcHost" type="button">Este aparelho mostra o texto</button>
+      <button class="ghost" id="rcJoinOpen" type="button">Este aparelho é o controle</button>
+    </div>
+    <div id="rcHostView" class="stack" hidden>
+      <p class="hint" style="margin:0">Código deste aparelho</p>
+      <div class="rc-code" id="rcCode">----</div>
+      <p class="hint" style="margin:0">No celular: abra o app, toque em Controle › Este aparelho é o controle e digite o código. O código fica o mesmo, então da próxima vez o celular reconecta sozinho.</p>
+      <p class="meta" id="rcHostStatus" style="margin:0"></p>
+      <div class="row-actions"><button class="ghost" id="rcHostStop" type="button">Desligar controle remoto</button></div>
+    </div>
+    <div id="rcJoinView" class="stack" hidden>
+      <p class="hint" style="margin:0">Digite o código que aparece no aparelho que mostra o texto.</p>
+      <form id="rcJoinForm"><input id="rcJoinCode" inputmode="numeric" maxlength="4" autocomplete="off" placeholder="0000"><button class="primary" type="submit">Conectar</button></form>
+      <p class="meta" id="rcJoinStatus" style="margin:0"></p>
+      <div class="row-actions"><button class="linkish" id="rcBack" type="button">Voltar</button></div>
+    </div>
+  </section>
+</div>
+
+<div id="rbar" hidden>
+  <div class="rb-status"><i class="rb-dot" id="rbDot"></i><span id="rbText"></span><span id="rbTime"></span></div>
+  <div class="rb-prog"><i id="rbBar"></i></div>
+  <div class="rb-main">
+    <button class="ghost" id="rbBack" type="button">Voltar</button>
+    <button class="primary" id="rbPlay" type="button">Abrir leitura</button>
+    <button class="ghost" id="rbFwd" type="button">Avançar</button>
+  </div>
+  <div class="rb-sub">
+    <button class="ghost" id="rbRestart" type="button">Do início</button>
+    <button class="ghost" id="rbClose" type="button">Fechar leitura</button>
+    <span class="grow"></span>
+    <button class="ghost" id="rbOff" type="button">Desconectar</button>
   </div>
 </div>
 
@@ -328,7 +401,13 @@ Ajuste a velocidade, o tamanho da letra e a margem até ficar confortável, e sa
   let currentId = scripts.some(s => s.id === stored.currentId) ? stored.currentId : scripts[0].id;
   const cur = () => scripts.find(s => s.id === currentId) || scripts[0];
   let seen = Array.isArray(stored.seen) ? stored.seen : [];   // sinais que o pedal já mandou neste aparelho
-  function save() { try { localStorage.setItem(KEY, JSON.stringify({ current: S, presets, scripts, currentId, seen })); } catch (e) {} }
+  // controle remoto: role 'host' (este aparelho mostra o texto) | 'remote' (este aparelho é o controle) | null
+  const rc = { role: null, peer: null, conn: null, ready: false, edit: 0, gen: 0, msg: '', backup: null };
+  function save() {
+    if (rc.role === 'remote') { if (rc.ready) { rc.edit = performance.now(); rcSendState(); } return; }   // no controle, tudo vai pro outro aparelho
+    try { localStorage.setItem(KEY, JSON.stringify({ current: S, presets, scripts, currentId, seen })); } catch (e) {}
+    if (rc.role === 'host') rcSendState();
+  }
 
   const fmt = v => String(v).replace('.', ',');
 
@@ -657,7 +736,7 @@ Ajuste a velocidade, o tamanho da letra e a margem até ficar confortável, e sa
     reader.hidden = true; setup.hidden = false;
     document.documentElement.classList.remove('reading');
     syncControls();
-    if (lock) { lock.release().catch(() => {}); lock = null; }
+    if (lock && !(rc.conn && rc.conn.open)) { lock.release().catch(() => {}); lock = null; }
   }
   async function wake() { try { if (navigator.wakeLock) lock = await navigator.wakeLock.request('screen'); } catch (e) {} }
   document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && !reader.hidden) wake(); });
@@ -806,13 +885,13 @@ Ajuste a velocidade, o tamanho da letra e a margem até ficar confortável, e sa
   $('#openPanel').addEventListener('click', openPanel);
   $('#panelClose').addEventListener('click', closePanel);
   $('#pPlay').addEventListener('click', togglePlay);
-  $('#pScript').addEventListener('change', e => {
-    selectScript(e.target.value);
-    applyLinkedPreset();
+  function readerScriptChanged() {
+    applyLinkedPreset(); save(); syncControls();
     cancelCount(); setPlaying(false); jump = null; hold = null; pos = 0; newTake();
     render(); layout(false); updateHud();
     toast(nameOf(cur()), 1200);
-  });
+  }
+  $('#pScript').addEventListener('change', e => { selectScript(e.target.value); readerScriptChanged(); });
   $('#restart').addEventListener('click', () => { jump = null; pos = 0; newTake(); paint(); stage.focus({ preventScroll: true }); });
   hud.addEventListener('click', e => {
     const b = e.target.closest('[data-step]'); if (!b) return;
@@ -822,7 +901,7 @@ Ajuste a velocidade, o tamanho da letra e a margem até ficar confortável, e sa
     save(); layout(true); updateHud();
     stage.focus({ preventScroll: true });
   });
-  $('#go').addEventListener('click', openReader);
+  $('#go').addEventListener('click', () => rc.role === 'remote' ? rcSend({ t: 'cmd', c: 'open' }) : openReader());
   window.addEventListener('resize', () => { if (!reader.hidden) layout(true); });
 
   /* Tempo da leitura: conta só enquanto o texto anda (pausa não entra) */
@@ -846,6 +925,7 @@ Ajuste a velocidade, o tamanho da letra e a margem até ficar confortável, e sa
     const dt = last == null ? 0 : Math.min(0.05, (t - last) / 1000);
     last = t;
     checkWheel(performance.now());
+    rcStatus(performance.now());
     if (!reader.hidden && !drag) {
       if (hold && performance.now() - holdSince > 10000) endHold();
       if (jump) {
@@ -867,7 +947,255 @@ Ajuste a velocidade, o tamanho da letra e a margem até ficar confortável, e sa
   }
   requestAnimationFrame(frame);
 
+  /* ---------- Controle remoto ----------
+     Um aparelho mostra o texto (host) e o outro controla (remote). Os dois se acham pelo código num servidor público
+     do PeerJS e depois conversam direto (WebRTC). O controle espelha roteiros, ajustes e configurações do host:
+     o que muda num lado vai pro outro. */
+  const RKEY = 'teleprompter-remote', PFX = 'tp-pedal-jm-';
+  const rcStore = (() => { try { return JSON.parse(localStorage.getItem(RKEY)) || {}; } catch (e) { return {}; } })();
+  const rcSave = () => { try { localStorage.setItem(RKEY, JSON.stringify(rcStore)); } catch (e) {} };
+  const NO_NET = 'Sem internet. O controle remoto precisa de internet nos dois aparelhos.';
+  let peerLib = null;
+  function loadPeer() {
+    return peerLib || (peerLib = new Promise((ok, fail) => {
+      const el = document.createElement('script');
+      el.src = 'https://cdnjs.cloudflare.com/ajax/libs/peerjs/1.5.4/peerjs.min.js';
+      el.onload = () => ok(window.Peer);
+      el.onerror = () => { peerLib = null; el.remove(); fail(new Error('offline')); };
+      document.head.append(el);
+    }));
+  }
+  const rcOn = () => !!(rc.conn && rc.conn.open);
+  function rcSend(m) { if (rcOn()) try { rc.conn.send(m); } catch (e) {} }
+  let rcT = null, rcDue = false;
+  function rcSendState() {   // no máximo uma vez a cada 80 ms, sempre com o estado mais novo
+    if (rcT) { rcDue = true; return; }
+    const s = clone(S); delete s.map;
+    rcSend({ t: 'state', S: s, presets, scripts, currentId });
+    rcT = setTimeout(() => { rcT = null; if (rcDue) { rcDue = false; rcSendState(); } }, 80);
+  }
+  const rcView = v => ['rcHome', 'rcHostView', 'rcJoinView'].forEach(id => { $('#' + id).hidden = id !== v; });
+  function rcOpen() { $('#rc').hidden = false; rcView(rc.role === 'host' ? 'rcHostView' : 'rcHome'); rcRender(); }
+  function rcRender() {
+    const host = rc.role === 'host';
+    const msg = host ? (rc.msg || (rcOn() ? 'Celular conectado' : 'Esperando o celular')) : '';
+    $('#rcCode').textContent = rcStore.code || '----';
+    $('#rcHostStatus').textContent = msg;
+    document.querySelectorAll('.rcState').forEach(el => { el.textContent = host ? msg + ' · código ' + rcStore.code : 'Desligado'; });
+    document.querySelectorAll('.rcOpen').forEach(b => b.classList.toggle('on', host && rcOn()));
+  }
+  function stopRc() {
+    rc.gen++;
+    clearTimeout(rc.retry); clearTimeout(rc.pt);
+    try { if (rc.conn) rc.conn.close(); } catch (e) {}
+    try { if (rc.peer) rc.peer.destroy(); } catch (e) {}
+    rc.peer = rc.conn = null; rc.msg = '';
+    if (rc.role === 'remote') leaveRemote();
+    rc.role = null;
+    rcRender();
+  }
+
+  /* Este aparelho mostra o texto */
+  function startHost() {
+    stopRc();
+    rc.role = 'host'; rc.tries = 0;
+    if (!rcStore.code) rcStore.code = String(1000 + Math.floor(Math.random() * 9000));
+    rcStore.host = true; rcSave();
+    hostPeer();
+  }
+  async function hostPeer() {
+    const gen = rc.gen;
+    rc.msg = 'Ligando…'; rcRender();
+    let Peer;
+    try { Peer = await loadPeer(); } catch (e) { if (gen === rc.gen) { rc.msg = NO_NET; rcRender(); } return; }
+    if (gen !== rc.gen) return;
+    const peer = rc.peer = new Peer(PFX + rcStore.code, { debug: 0 });
+    const again = ms => { try { peer.destroy(); } catch (e) {} rc.peer = null; clearTimeout(rc.retry); rc.retry = setTimeout(() => { if (gen === rc.gen) hostPeer(); }, ms); };
+    peer.on('open', () => { if (gen !== rc.gen) return; rc.tries = 0; rc.msg = ''; rcRender(); });
+    peer.on('connection', c => {
+      if (gen !== rc.gen) return;
+      if (rc.conn) try { rc.conn.close(); } catch (e) {}
+      rc.conn = c;
+      c.on('open', () => { rc.msg = ''; lastStatus = ''; rcSendState(); rcRender(); wake(); toast('Controle conectado', 1500); });
+      c.on('data', rcHostData);
+      c.on('close', () => { if (rc.conn !== c) return; rc.conn = null; rcRender(); toast('Controle desconectado', 1500); });
+    });
+    peer.on('disconnected', () => setTimeout(() => { if (gen === rc.gen && !peer.destroyed && peer.disconnected) peer.reconnect(); }, 2000));
+    peer.on('error', err => {
+      if (gen !== rc.gen) return;
+      if (err.type === 'unavailable-id') {   // código ainda preso de uma sessão anterior: espera e tenta de novo; depois de várias, troca
+        if (++rc.tries > 5) { rcStore.code = String(1000 + Math.floor(Math.random() * 9000)); rcSave(); rc.tries = 0; }
+        rc.msg = 'Ligando…'; rcRender(); again(3000);
+      } else if (['network', 'server-error', 'socket-error', 'socket-closed', 'browser-incompatible'].includes(err.type)) {
+        rc.msg = err.type === 'browser-incompatible' ? 'Este navegador não aceita o controle remoto.' : NO_NET + ' Tentando de novo…';
+        rcRender(); if (err.type !== 'browser-incompatible') again(5000);
+      }
+    });
+  }
+  function rcHostData(m) {
+    if (!m || typeof m !== 'object') return;
+    if (m.t === 'state') rcApply(m);
+    else if (m.t === 'cmd') {
+      if (m.c === 'open' && reader.hidden) openReader();
+      else if (m.c === 'close' && !reader.hidden) closeReader();
+      else if (m.c === 'start' && !reader.hidden) begin();
+      else if (m.c === 'restart' && !reader.hidden) { jump = null; pos = 0; newTake(); paint(); }
+    } else if (m.t === 'act' && !reader.hidden && ['back', 'fwd', 'pause'].includes(m.a)) {
+      if (!cover.hidden) { if (m.ph !== 'up') begin(); return; }
+      if (m.ph === 'tap') tapAction(m.a);
+      else if (m.ph === 'down') startHold(m.a);
+      else if (m.ph === 'up' && hold) endHold();
+    }
+  }
+  function rcApply(m) {   // o controle mandou roteiros e ajustes novos
+    if (!Array.isArray(m.scripts) || !m.scripts.length || !m.S) return;
+    const prevId = currentId, prevText = cur().text;
+    S = Object.assign(clone(DEF), m.S, { map: S.map });
+    presets = Array.isArray(m.presets) ? m.presets : presets;
+    scripts = m.scripts;
+    currentId = scripts.some(x => x.id === m.currentId) ? m.currentId : scripts[0].id;
+    txt.value = cur().text;
+    if (!reader.hidden && currentId !== prevId) return readerScriptChanged();
+    if (!reader.hidden && cur().text !== prevText) render();
+    changed();
+  }
+  let lastStatus = '', statusAt = 0;
+  function rcStatus(now) {
+    if (rc.role !== 'host' || !rcOn() || now - statusAt < 200) return;
+    statusAt = now;
+    const st = { t: 'status', reading: !reader.hidden, cover: !cover.hidden, playing, counting, hold: !!hold,
+      p: maxPos ? Math.round(pos / maxPos * 1000) / 1000 : 0, el: Math.floor(elapsed), name: nameOf(cur()) };
+    const k = JSON.stringify(st);
+    if (k !== lastStatus) { lastStatus = k; rcSend(st); }
+  }
+
+  /* Este aparelho é o controle */
+  let rst = null, rlock = null;
+  async function wakeRemote() { try { if (navigator.wakeLock && rc.role === 'remote' && !rlock) { rlock = await navigator.wakeLock.request('screen'); rlock.addEventListener('release', () => { rlock = null; }); } } catch (e) {} }
+  async function startRemote(code) {
+    stopRc();
+    rc.role = 'remote'; rc.ready = false; rst = null;
+    rcStore.join = code; rcStore.remote = true; rcStore.host = false; rcSave();
+    rc.backup = { S, presets, scripts, currentId };
+    document.documentElement.classList.add('remote');
+    $('.brand h1').textContent = 'Controle remoto · ' + code;
+    $('#rbar').hidden = false; $('#rc').hidden = true;
+    rc.msg = 'Conectando…'; rbRender();
+    wakeRemote();
+    const gen = rc.gen;
+    let Peer;
+    try { Peer = await loadPeer(); } catch (e) { if (gen === rc.gen) { rc.msg = NO_NET; rbRender(); rc.retry = setTimeout(() => { if (gen === rc.gen) startRemote(code); }, 5000); } return; }
+    if (gen !== rc.gen) return;
+    const peer = rc.peer = new Peer({ debug: 0 });
+    peer.on('open', () => remoteConnect(gen));
+    peer.on('disconnected', () => setTimeout(() => { if (gen === rc.gen && !peer.destroyed && peer.disconnected) peer.reconnect(); }, 2000));
+    peer.on('error', err => {
+      if (gen !== rc.gen) return;
+      rc.msg = err.type === 'peer-unavailable' ? 'Não achei o código ' + code + '. No outro aparelho, ligue o controle remoto.' : NO_NET + ' Tentando de novo…';
+      rbRender();
+      clearTimeout(rc.retry); rc.retry = setTimeout(() => remoteConnect(gen), 3000);
+    });
+  }
+  function remoteConnect(gen) {
+    if (gen !== rc.gen || !rc.peer || rcOn()) return;
+    if (rc.peer.disconnected) { if (!rc.peer.destroyed) rc.peer.reconnect(); return; }   // ao reconectar, o 'open' chama de novo
+    if (!rc.peer.open) return;
+    const c = rc.peer.connect(PFX + rcStore.join, { reliable: true });
+    rc.conn = c;
+    c.on('open', () => { if (rc.conn === c) { rc.msg = ''; rbRender(); } });
+    c.on('data', rcRemoteData);
+    c.on('close', () => {
+      if (gen !== rc.gen || rc.conn !== c) return;
+      rc.conn = null; rc.msg = 'A conexão caiu. Tentando de novo…'; rbRender();
+      clearTimeout(rc.retry); rc.retry = setTimeout(() => remoteConnect(gen), 2000);
+    });
+  }
+  function rcRemoteData(m) {
+    if (!m || typeof m !== 'object') return;
+    if (m.t === 'status') { rst = m; rbRender(); return; }
+    if (m.t !== 'state' || !Array.isArray(m.scripts) || !m.scripts.length) return;
+    const wait = 700 - (performance.now() - rc.edit);   // logo depois de mexer aqui, espera: o que chega ainda pode ser o eco antigo
+    if (rc.ready && wait > 0) { rc.pend = m; clearTimeout(rc.pt); rc.pt = setTimeout(() => { const p = rc.pend; rc.pend = null; if (p) rcRemoteData(p); }, wait); return; }
+    S = Object.assign(clone(DEF), m.S, { map: S.map });
+    presets = Array.isArray(m.presets) ? m.presets : [];
+    scripts = m.scripts;
+    currentId = scripts.some(x => x.id === m.currentId) ? m.currentId : scripts[0].id;
+    rc.ready = true;
+    if (document.activeElement !== txt) txt.value = cur().text;
+    syncControls(); rbRender();
+  }
+  function leaveRemote() {
+    ({ S, presets, scripts, currentId } = rc.backup);
+    rc.backup = null; rc.ready = false; rst = null;
+    document.documentElement.classList.remove('remote');
+    $('.brand h1').textContent = 'Teleprompter com Pedal';
+    $('#rbar').hidden = true;
+    txt.value = cur().text; syncControls();
+    if (rlock) { rlock.release().catch(() => {}); rlock = null; }
+  }
+  function rbRender() {
+    const on = rcOn() && rc.ready, st = rst, reading = !!(on && st && st.reading);
+    $('#rbDot').classList.toggle('on', on);
+    $('#rbText').textContent = rc.msg || (!on ? 'Conectando…' : !st ? 'Conectado'
+      : !st.reading ? 'Na tela de ajustes · ' + st.name
+      : st.cover ? 'Pronto pra começar · ' + st.name
+      : st.counting ? 'Contagem… · ' + st.name
+      : (st.hold ? 'Movendo' : st.playing ? 'Rolando' : 'Pausado') + ' · ' + st.name);
+    $('#rbTime').textContent = reading && !st.cover ? fmtTime(st.el) : '';
+    $('#rbBar').style.width = (reading ? st.p * 100 : 0) + '%';
+    $('#rbPlay').textContent = !reading ? 'Abrir leitura' : st.cover ? 'Começar' : st.playing || st.counting ? 'Pausar' : 'Rolar';
+    $('#rbPlay').disabled = !on;
+    ['#rbBack', '#rbFwd', '#rbRestart', '#rbClose'].forEach(sel => { $(sel).disabled = !reading; });
+  }
+  $('#rbPlay').addEventListener('click', () => {
+    if (!rst || !rst.reading) rcSend({ t: 'cmd', c: 'open' });
+    else if (rst.cover) rcSend({ t: 'cmd', c: 'start' });
+    else rcSend({ t: 'act', a: 'pause', ph: 'tap' });
+  });
+  /* Voltar e Avançar funcionam como o pedal: toque = algumas linhas; segurando = vai direto até soltar */
+  [['#rbBack', 'back'], ['#rbFwd', 'fwd']].forEach(([sel, a]) => {
+    const b = $(sel); let t = null, held = false;
+    b.addEventListener('pointerdown', e => {
+      e.preventDefault(); held = false; clearTimeout(t);
+      t = setTimeout(() => { held = true; rcSend({ t: 'act', a, ph: 'down' }); }, 260);
+      try { b.setPointerCapture(e.pointerId); } catch (err) {}
+    });
+    const up = () => { if (t === null) return; clearTimeout(t); t = null; rcSend({ t: 'act', a, ph: held ? 'up' : 'tap' }); };
+    b.addEventListener('pointerup', up);
+    b.addEventListener('pointercancel', up);
+    b.addEventListener('contextmenu', e => e.preventDefault());
+  });
+  $('#rbRestart').addEventListener('click', () => rcSend({ t: 'cmd', c: 'restart' }));
+  $('#rbClose').addEventListener('click', () => rcSend({ t: 'cmd', c: 'close' }));
+  $('#rbOff').addEventListener('click', () => { rcStore.remote = false; rcSave(); stopRc(); });
+
+  document.querySelectorAll('.rcOpen').forEach(b => b.addEventListener('click', rcOpen));
+  $('#rcClose').addEventListener('click', () => { $('#rc').hidden = true; });
+  $('#rc').addEventListener('click', e => { if (e.target.id === 'rc') $('#rc').hidden = true; });
+  $('#rcHost').addEventListener('click', () => { rcView('rcHostView'); startHost(); });
+  $('#rcHostStop').addEventListener('click', () => { rcStore.host = false; rcSave(); stopRc(); rcView('rcHome'); });
+  $('#rcJoinOpen').addEventListener('click', () => { rcView('rcJoinView'); $('#rcJoinStatus').textContent = ''; $('#rcJoinCode').value = rcStore.join || ''; $('#rcJoinCode').focus(); });
+  $('#rcBack').addEventListener('click', () => rcView('rcHome'));
+  $('#rcJoinForm').addEventListener('submit', e => {
+    e.preventDefault();
+    const code = $('#rcJoinCode').value.replace(/\D/g, '');
+    if (code.length !== 4) { $('#rcJoinStatus').textContent = 'O código tem 4 números.'; return; }
+    $('#rcJoinCode').blur();
+    startRemote(code);
+  });
+  /* Quando o app volta pra frente (ou a internet volta), reconecta sozinho */
+  function rcRevive() {
+    if (rc.role === 'host' && !rc.peer) hostPeer();
+    else if (rc.role === 'host' && rc.peer.disconnected && !rc.peer.destroyed) rc.peer.reconnect();
+    else if (rc.role === 'remote') { wakeRemote(); if (!rcOn()) remoteConnect(rc.gen); }
+  }
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') rcRevive(); });
+  window.addEventListener('online', rcRevive);
+
   syncControls();
+  if (rcStore.host) startHost();
+  else if (rcStore.remote && rcStore.join) startRemote(rcStore.join);
+  else rcRender();
 })();
 </script>
 
