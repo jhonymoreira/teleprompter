@@ -81,6 +81,10 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
 .ctl { display: grid; gap: 6px; }
 .ctl-top { display: flex; justify-content: space-between; gap: 10px; }
 .ctl-top label { font-weight: 500; }
+.ctl-top .val { display: flex; align-items: center; gap: 10px; }
+.ctl-top .link { background: transparent; border: 1px solid var(--line); border-radius: 999px; padding: 2px 10px; font-size: 0.75rem; color: var(--muted); font-weight: 500; }
+.ctl-top .link:hover { border-color: var(--muted); color: var(--fg); }
+.ctl[hidden] { display: none; }
 .ctl-top output { color: var(--accent); font-family: var(--mono); font-size: 0.85rem; font-variant-numeric: tabular-nums; }
 input[type=range] { width: 100%; accent-color: var(--accent); margin: 0; height: 28px; }
 
@@ -287,7 +291,7 @@ input[type=range] { width: 100%; accent-color: var(--accent); margin: 0; height:
   const KEY = 'teleprompter-pedal-v1';
   const LH = 1.4;
   const DEF = {
-    speed: 7, font: 56, margin: 8, mVert: 0, line: 30, back: 2, align: 'left',
+    speed: 7, font: 56, margin: 8, mVert: 0, sepH: false, sepV: false, mL: 8, mR: 8, mT: 0, mB: 0, line: 30, back: 2, align: 'left',
     flipH: false, flipV: false, bold: true, resume: true, countdown: true, showTime: true,
     map: {
       ArrowUp: 'back', ArrowLeft: 'back', PageUp: 'back', WheelUp: 'back',
@@ -333,7 +337,11 @@ Ajuste a velocidade, o tamanho da letra e a margem até ficar confortável, e sa
     ['speed', 'Velocidade', 1, 20, 0.5, v => fmt(v)],
     ['font', 'Tamanho da letra', 24, 140, 2, v => v + ' px'],
     ['margin', 'Margem nas laterais', 0, 30, 1, v => v + '%'],
+    ['mL', 'Margem da esquerda', 0, 30, 1, v => v + '%'],
+    ['mR', 'Margem da direita', 0, 30, 1, v => v + '%'],
     ['mVert', 'Margem em cima e embaixo', 0, 40, 1, v => v + '%'],
+    ['mT', 'Margem de cima', 0, 40, 1, v => v + '%'],
+    ['mB', 'Margem de baixo', 0, 40, 1, v => v + '%'],
     ['line', 'Altura da linha de leitura', 10, 60, 1, v => v + '% do topo'],
     ['back', 'Quanto um toque volta ou avança', 1, 8, 1, v => v + (v > 1 ? ' linhas' : ' linha')]
   ];
@@ -347,12 +355,29 @@ Ajuste a velocidade, o tamanho da letra e a margem até ficar confortável, e sa
   ];
   /* Os mesmos controles aparecem em dois lugares: na tela de ajustes ('') e no painel da leitura ('p') */
   const PREFIXES = ['', 'p'];
+  /* Margens: um controle só pros dois lados, ou separadas (cada lado no seu) */
+  const PAIRS = [
+    { sep: 'sepH', one: 'margin', two: ['mL', 'mR'] },
+    { sep: 'sepV', one: 'mVert', two: ['mT', 'mB'] }
+  ];
+  const pairOf = k => PAIRS.find(g => g.one === k || g.two.includes(k));
+  const marg = s => s.sepH ? [s.mL, s.mR] : [s.margin, s.margin];   // [esquerda, direita]
+  const margV = s => s.sepV ? [s.mT, s.mB] : [s.mVert, s.mVert];    // [cima, baixo]
+  function toggleSep(g) {
+    if (S[g.sep]) S[g.one] = Math.round((S[g.two[0]] + S[g.two[1]]) / 2);
+    else g.two.forEach(k => S[k] = S[g.one]);
+    S[g.sep] = !S[g.sep]; changed();
+  }
   function buildControls(pre, sliders, toggles) {
     SLIDERS.forEach(([k, label, min, max, step]) => {
-      const d = document.createElement('div'); d.className = 'ctl';
-      d.innerHTML = `<div class="ctl-top"><label for="${pre}r-${k}">${label}</label><output id="${pre}o-${k}"></output></div><input type="range" id="${pre}r-${k}" min="${min}" max="${max}" step="${step}">`;
+      const d = document.createElement('div'); d.className = 'ctl'; d.dataset.k = k;
+      const g = pairOf(k), chip = g && (k === g.one || k === g.two[0]);
+      d.innerHTML = `<div class="ctl-top"><label for="${pre}r-${k}">${label}</label><span class="val">` +
+        (chip ? `<button type="button" class="link">${k === g.one ? 'Separar' : 'Juntar'}</button>` : '') +
+        `<output id="${pre}o-${k}"></output></span></div><input type="range" id="${pre}r-${k}" min="${min}" max="${max}" step="${step}">`;
       sliders.append(d);
       d.querySelector('input').addEventListener('input', e => { S[k] = +e.target.value; changed(); });
+      if (chip) d.querySelector('.link').addEventListener('click', () => toggleSep(g));
     });
     TOGGLES.forEach(([k, label]) => {
       const l = document.createElement('label'); l.className = 'switch';
@@ -368,6 +393,10 @@ Ajuste a velocidade, o tamanho da letra e a margem até ficar confortável, e sa
   function syncControls() {
     PREFIXES.forEach(pre => {
       SLIDERS.forEach(([k, , , , , show]) => { $('#' + pre + 'r-' + k).value = S[k]; $('#' + pre + 'o-' + k).textContent = show(S[k]); });
+      PAIRS.forEach(g => {
+        document.querySelectorAll(`#${pre ? 'p-' : ''}sliders [data-k="${g.one}"]`).forEach(d => d.hidden = S[g.sep]);
+        g.two.forEach(k => document.querySelectorAll(`#${pre ? 'p-' : ''}sliders [data-k="${k}"]`).forEach(d => d.hidden = !S[g.sep]));
+      });
       TOGGLES.forEach(([k]) => { $('#' + pre + 't-' + k).checked = !!S[k]; });
     });
     document.querySelectorAll('.align button').forEach(b => b.setAttribute('aria-pressed', b.dataset.v === S.align));
@@ -389,7 +418,7 @@ Ajuste a velocidade, o tamanho da letra e a margem até ficar confortável, e sa
     if (!measurer) { measurer = document.createElement('div'); measurer.className = 'measure'; document.body.append(measurer); }
     measurer.style.cssText = `position:absolute;left:-9999px;top:0;visibility:hidden;box-sizing:border-box;width:${Math.max(innerWidth, 320)}px;` +
       `font-family:var(--read-face);line-height:${LH};font-size:${conf.font}px;font-weight:${conf.bold ? 700 : 400};` +
-      `padding:0 calc(${conf.margin}% + 20px);overflow-wrap:break-word`;
+      `padding:0 calc(${marg(conf)[1]}% + 20px) 0 calc(${marg(conf)[0]}% + 20px);overflow-wrap:break-word`;
     measurer.innerHTML = paraHtml(text);
     const travel = Math.max(0, measurer.offsetHeight - conf.font * LH);
     return travel / (conf.speed * 5 * (conf.font / 48));
@@ -504,7 +533,7 @@ Ajuste a velocidade, o tamanho da letra e a margem até ficar confortável, e sa
   const pick = o => { const r = {}; SKEYS.forEach(k => r[k] = o[k]); return r; };
   const same = (a, b) => JSON.stringify(pick(a)) === JSON.stringify(pick(b));
   function summary(s) {
-    const parts = ['Vel. ' + fmt(s.speed), 'Letra ' + s.font, 'Margem ' + s.margin + '%'];
+    const parts = ['Vel. ' + fmt(s.speed), 'Letra ' + s.font, 'Margem ' + (s.sepH ? s.mL + '/' + s.mR : s.margin) + '%'];
     if (s.flipH || s.flipV) parts.push('espelhado');
     if (s.align === 'center') parts.push('centro');
     return parts.join(' · ');
@@ -573,15 +602,15 @@ Ajuste a velocidade, o tamanho da letra e a margem até ficar confortável, e sa
   }
   function layout(keepRatio) {
     const ratio = maxPos ? pos / maxPos : 0;
-    stage.style.top = stage.style.bottom = S.mVert + '%';
+    [stage.style.top, stage.style.bottom] = margV(S).map(v => v + '%');
     const H = stage.clientHeight, top = H * S.line / 100;
     content.style.fontSize = S.font + 'px';
     content.style.fontWeight = S.bold ? 700 : 400;
     content.style.textAlign = S.align;
     content.style.paddingTop = (top - lineH() / 2 + S.font * 0.2) + 'px';
     content.style.paddingBottom = (H - top) + 'px';
-    content.style.paddingLeft = `calc(${S.margin}% + max(20px, env(safe-area-inset-left, 0px)))`;
-    content.style.paddingRight = `calc(${S.margin}% + max(20px, env(safe-area-inset-right, 0px)))`;
+    content.style.paddingLeft = `calc(${marg(S)[0]}% + max(20px, env(safe-area-inset-left, 0px)))`;
+    content.style.paddingRight = `calc(${marg(S)[1]}% + max(20px, env(safe-area-inset-right, 0px)))`;
     flip.style.transform = `scale(${S.flipH ? -1 : 1}, ${S.flipV ? -1 : 1})`;
     mark.style.top = top + 'px';
     shade.style.height = Math.max(0, top - lineH() * 0.55) + 'px';
