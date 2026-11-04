@@ -125,13 +125,13 @@ input[type=range] { width: 100%; accent-color: var(--accent); margin: 0; height:
 #flip { position: absolute; inset: 0; }
 #scroller { position: absolute; left: 0; right: 0; top: 0; will-change: transform; }
 #content { font-family: var(--read-face); color: var(--read); line-height: 1.4; box-sizing: border-box; overflow-wrap: break-word; }
-#content p, .measure p { margin: 0 0 0.9em; }
-#content .note, .measure .note { color: color-mix(in srgb, var(--accent) 55%, #000); font-size: 0.6em; font-weight: 400; }
-#shade { position: absolute; left: 0; right: 0; top: 0; pointer-events: none; background: linear-gradient(to bottom, rgba(0,0,0,.82), rgba(0,0,0,.35) 75%, rgba(0,0,0,0)); }
-#mark { position: absolute; left: 0; right: 0; height: 0; pointer-events: none; }
-#mark i { position: absolute; top: -9px; width: 0; height: 0; border-top: 9px solid transparent; border-bottom: 9px solid transparent; }
-#mark .l { left: max(4px, env(safe-area-inset-left, 0px)); border-left: 14px solid var(--accent); }
-#mark .r { right: max(4px, env(safe-area-inset-right, 0px)); border-right: 14px solid var(--accent); }
+#content p, .measure p, #mContent p { margin: 0 0 0.9em; }
+#content .note, .measure .note, #mContent .note { color: color-mix(in srgb, var(--accent) 55%, #000); font-size: 0.6em; font-weight: 400; }
+#shade, #mShade { position: absolute; left: 0; right: 0; top: 0; pointer-events: none; background: linear-gradient(to bottom, rgba(0,0,0,.82), rgba(0,0,0,.35) 75%, rgba(0,0,0,0)); }
+#mark, #mMark { position: absolute; left: 0; right: 0; height: 0; pointer-events: none; }
+#mark i, #mMark i { position: absolute; top: -9px; width: 0; height: 0; border-top: 9px solid transparent; border-bottom: 9px solid transparent; }
+#mark .l, #mMark .l { left: max(4px, env(safe-area-inset-left, 0px)); border-left: 14px solid var(--accent); }
+#mark .r, #mMark .r { right: max(4px, env(safe-area-inset-right, 0px)); border-right: 14px solid var(--accent); }
 
 #hud { position: absolute; top: 0; left: 0; right: 0; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: calc(env(safe-area-inset-top, 0px) + 10px) max(12px, env(safe-area-inset-right, 0px)) 10px max(12px, env(safe-area-inset-left, 0px)); background: rgba(10, 11, 13, .88); border-bottom: 1px solid var(--line); transition: opacity .25s, transform .25s; opacity: 0; transform: translateY(-100%); pointer-events: none; font-family: var(--ui); }
 #hud.show { opacity: 1; transform: none; pointer-events: auto; }
@@ -170,14 +170,21 @@ input[type=range] { width: 100%; accent-color: var(--accent); margin: 0; height:
 .top-btns { display: flex; gap: 8px; flex: none; }
 .rcOpen.on::before { content: ""; display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #5bd37a; margin-right: 7px; vertical-align: 1px; }
 html.remote .top .rcOpen, html.remote #go, html.remote #pedalCard { display: none; }
-html.remote #setup { padding-bottom: 240px; }
+html:not(.remote) #rbOff { display: none; }
+html.remote #setup { padding-bottom: calc(var(--rbh, 240px) + 20px); }
+#rbView { position: relative; overflow: hidden; margin: 0 auto; border: 1px solid var(--line); border-radius: 10px; background: var(--stage); touch-action: none; user-select: none; -webkit-user-select: none; cursor: grab; }
+#rbView[hidden] { display: none; }
+#mScreen { position: absolute; left: 0; top: 0; transform-origin: 0 0; overflow: hidden; pointer-events: none; }
+#mStage { position: absolute; left: 0; right: 0; overflow: hidden; }
+#mScroller { position: absolute; left: 0; right: 0; top: 0; will-change: transform; }
+#mContent { font-family: var(--read-face); color: var(--read); line-height: 1.4; box-sizing: border-box; overflow-wrap: break-word; }
 #rc { position: fixed; inset: 0; z-index: 40; background: rgba(0, 0, 0, .65); display: grid; place-items: center; padding: 16px; font-family: var(--ui); }
 #rc[hidden], #rbar[hidden] { display: none; }
 .rc-card { width: min(420px, 100%); box-sizing: border-box; }
 .rc-code { font-family: var(--mono); font-size: 3rem; letter-spacing: .25em; padding-left: .25em; color: var(--accent); text-align: center; line-height: 1.1; }
 #rcJoinForm { display: flex; gap: 8px; }
 #rcJoinCode { flex: 1; min-width: 0; background: var(--bg); border: 1px solid var(--line); border-radius: 10px; padding: 11px 14px; font-family: var(--mono); font-size: 20px; letter-spacing: .2em; color: var(--fg); }
-#rbar { position: fixed; left: 0; right: 0; bottom: 0; z-index: 15; display: grid; gap: 10px; background: rgba(16, 18, 22, .97); border-top: 1px solid var(--line); padding: 12px max(16px, env(safe-area-inset-right, 0px)) calc(12px + env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px)); font-family: var(--ui); }
+#rbar { position: fixed; left: 0; right: 0; bottom: 0; z-index: 15; display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; background: #101216; border-top: 1px solid var(--line); padding: 12px max(16px, env(safe-area-inset-right, 0px)) calc(12px + env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px)); font-family: var(--ui); }
 .rb-status { display: flex; align-items: center; gap: 8px; font-size: 0.9rem; min-width: 0; }
 .rb-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); flex: none; }
 .rb-dot.on { background: #5bd37a; }
@@ -190,6 +197,7 @@ html.remote #setup { padding-bottom: 240px; }
 #rbar .ghost { background: var(--panel); }
 .rb-sub { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 .rb-sub .grow { flex: 1; }
+.rb-sub button { padding: 6px 10px; font-size: 0.85rem; }
 #rbar button:disabled { color: #4b5058; }
 #rbar .primary:disabled { background: #5c4a22; }
 
@@ -203,6 +211,7 @@ html.remote #setup { padding-bottom: 240px; }
     <div class="brand"><span class="tally"></span><h1>Teleprompter com Pedal</h1></div>
     <div class="top-btns">
       <button class="ghost rcOpen" type="button">Controle</button>
+      <button class="ghost" id="rbOff" type="button">Desconectar</button>
       <button id="go" class="primary" type="button">Começar a ler</button>
     </div>
   </header>
@@ -343,6 +352,13 @@ html.remote #setup { padding-bottom: 240px; }
 </div>
 
 <div id="rbar" hidden>
+  <div id="rbView" hidden aria-label="Tela do outro aparelho">
+    <div id="mScreen"><div id="mStage">
+      <div id="mScroller"><div id="mContent"></div></div>
+      <div id="mShade"></div>
+      <div id="mMark"><i class="l"></i><i class="r"></i></div>
+    </div></div>
+  </div>
   <div class="rb-status"><i class="rb-dot" id="rbDot"></i><span id="rbText"></span><span id="rbTime"></span></div>
   <div class="rb-prog"><i id="rbBar"></i></div>
   <div class="rb-main">
@@ -352,9 +368,8 @@ html.remote #setup { padding-bottom: 240px; }
   </div>
   <div class="rb-sub">
     <button class="ghost" id="rbRestart" type="button">Do início</button>
-    <button class="ghost" id="rbClose" type="button">Fechar leitura</button>
-    <span class="grow"></span>
-    <button class="ghost" id="rbOff" type="button">Desconectar</button>
+    <button class="ghost" id="rbClose" type="button">Fechar</button>
+    <button class="ghost" id="rbEye" type="button">Ocultar tela</button>
   </div>
 </div>
 
@@ -926,7 +941,7 @@ Ajuste a velocidade, o tamanho da letra e a margem até ficar confortável, e sa
     last = t;
     checkWheel(performance.now());
     rcStatus(performance.now());
-    if (!reader.hidden && !drag) {
+    if (!reader.hidden && !drag && !rdrag) {
       if (hold && performance.now() - holdSince > 10000) endHold();
       if (jump) {
         const k = Math.min(1, (performance.now() - jump.t0) / jump.dur);
@@ -1040,6 +1055,10 @@ Ajuste a velocidade, o tamanho da letra e a margem até ficar confortável, e sa
       else if (m.c === 'close' && !reader.hidden) closeReader();
       else if (m.c === 'start' && !reader.hidden) begin();
       else if (m.c === 'restart' && !reader.hidden) { jump = null; pos = 0; newTake(); paint(); }
+    } else if (m.t === 'seek' && !reader.hidden && cover.hidden && typeof m.pos === 'number') {   // arrastou o texto na tela do controle
+      jump = null; pos = clamp(m.pos); paint();
+      clearTimeout(rdragT); rdrag = !m.end;
+      if (rdrag) rdragT = setTimeout(() => { rdrag = false; }, 1500);
     } else if (m.t === 'act' && !reader.hidden && ['back', 'fwd', 'pause'].includes(m.a)) {
       if (!cover.hidden) { if (m.ph !== 'up') begin(); return; }
       if (m.ph === 'tap') tapAction(m.a);
@@ -1059,12 +1078,13 @@ Ajuste a velocidade, o tamanho da letra e a margem até ficar confortável, e sa
     if (!reader.hidden && cur().text !== prevText) render();
     changed();
   }
-  let lastStatus = '', statusAt = 0;
+  let lastStatus = '', statusAt = 0, rdrag = false, rdragT = null;
   function rcStatus(now) {
-    if (rc.role !== 'host' || !rcOn() || now - statusAt < 200) return;
+    if (rc.role !== 'host' || !rcOn() || now - statusAt < 100) return;
     statusAt = now;
     const st = { t: 'status', reading: !reader.hidden, cover: !cover.hidden, playing, counting, hold: !!hold,
-      p: maxPos ? Math.round(pos / maxPos * 1000) / 1000 : 0, el: Math.floor(elapsed), name: nameOf(cur()) };
+      p: maxPos ? Math.round(pos / maxPos * 1000) / 1000 : 0, el: Math.floor(elapsed), name: nameOf(cur()),
+      pos: Math.round(pos), max: Math.round(maxPos), sp: speedPx(), w: reader.clientWidth, h: reader.clientHeight };
     const k = JSON.stringify(st);
     if (k !== lastStatus) { lastStatus = k; rcSend(st); }
   }
@@ -1112,7 +1132,7 @@ Ajuste a velocidade, o tamanho da letra e a margem até ficar confortável, e sa
   }
   function rcRemoteData(m) {
     if (!m || typeof m !== 'object') return;
-    if (m.t === 'status') { rst = m; rbRender(); return; }
+    if (m.t === 'status') { m.at = performance.now(); rst = m; rbRender(); return; }
     if (m.t !== 'state' || !Array.isArray(m.scripts) || !m.scripts.length) return;
     const wait = 700 - (performance.now() - rc.edit);   // logo depois de mexer aqui, espera: o que chega ainda pode ser o eco antigo
     if (rc.ready && wait > 0) { rc.pend = m; clearTimeout(rc.pt); rc.pt = setTimeout(() => { const p = rc.pend; rc.pend = null; if (p) rcRemoteData(p); }, wait); return; }
@@ -1146,7 +1166,85 @@ Ajuste a velocidade, o tamanho da letra e a margem até ficar confortável, e sa
     $('#rbPlay').textContent = !reading ? 'Abrir leitura' : st.cover ? 'Começar' : st.playing || st.counting ? 'Pausar' : 'Rolar';
     $('#rbPlay').disabled = !on;
     ['#rbBack', '#rbFwd', '#rbRestart', '#rbClose'].forEach(sel => { $(sel).disabled = !reading; });
+    const view = reading && rcStore.view !== false && !!st.w;
+    $('#rbEye').textContent = rcStore.view === false ? 'Ver tela' : 'Ocultar tela';
+    $('#rbEye').disabled = !reading;
+    $('#rbView').hidden = !view;
+    if (view) { mirrorLayout(); if (!mv.raf) mv.raf = requestAnimationFrame(mirrorFrame); }
   }
+
+  /* Tela do outro aparelho, no controle: monta o mesmo texto no tamanho exato da tela de lá e reduz pra caber.
+     A posição chega 10 vezes por segundo; entre uma e outra, o controle prevê o movimento pela velocidade. */
+  const mScreen = $('#mScreen'), mStage = $('#mStage'), mScroller = $('#mScroller'), mContent = $('#mContent'), rbView = $('#rbView');
+  const mv = { key: '', html: null, shown: 0, last: 0, scale: 1, raf: 0, drag: null, sentAt: 0 };
+  function mirrorLayout() {
+    const st = rst; if (!st || !st.w) return;
+    const bs = getComputedStyle($('#rbar')), availW = $('#rbar').clientWidth - parseFloat(bs.paddingLeft) - parseFloat(bs.paddingRight), maxH = Math.max(140, innerHeight * 0.38);
+    const [L, R] = marg(S), [T, B] = margV(S);
+    const key = JSON.stringify([st.w, st.h, availW, maxH, S.font, S.bold, S.align, L, R, T, B, S.line]);
+    const html = paraHtml(cur().text) || '<p class="note">Sem texto.</p>';
+    if (html !== mv.html) { mContent.innerHTML = mv.html = html; }
+    if (key === mv.key) return;
+    mv.key = key;
+    const sc = mv.scale = Math.min(availW / st.w, maxH / st.h);
+    rbView.style.width = Math.round(st.w * sc) + 'px'; rbView.style.height = Math.round(st.h * sc) + 'px';
+    mScreen.style.width = st.w + 'px'; mScreen.style.height = st.h + 'px';
+    mScreen.style.transform = `scale(${sc})`;
+    mStage.style.top = T + '%'; mStage.style.bottom = B + '%';
+    const H = st.h * (1 - (T + B) / 100), top = H * S.line / 100, lh = S.font * LH;
+    mContent.style.fontSize = S.font + 'px';
+    mContent.style.fontWeight = S.bold ? 700 : 400;
+    mContent.style.textAlign = S.align;
+    mContent.style.paddingTop = (top - lh / 2 + S.font * 0.2) + 'px';
+    mContent.style.paddingBottom = (H - top) + 'px';
+    mContent.style.paddingLeft = `calc(${L}% + 20px)`;
+    mContent.style.paddingRight = `calc(${R}% + 20px)`;
+    $('#mMark').style.top = top + 'px';
+    $('#mShade').style.height = Math.max(0, top - lh * 0.55) + 'px';
+  }
+  function mirrorFrame() {
+    const st = rst;
+    if (rbView.hidden || !st) { mv.raf = 0; mv.last = 0; return; }
+    const now = performance.now(), dt = mv.last ? Math.min(0.1, (now - mv.last) / 1000) : 0;
+    mv.last = now;
+    let target;
+    if (mv.drag) target = mv.drag.p;
+    else {
+      target = st.pos + (st.playing && !st.counting && !st.hold && !st.cover ? st.sp * Math.min(now - st.at, 1000) / 1000 : 0);   // sem notícia por mais de 1 s, para de prever
+      target = Math.max(0, Math.min(st.max, target));
+    }
+    if (mv.drag || Math.abs(target - mv.shown) > st.h) mv.shown = target;
+    else mv.shown += (target - mv.shown) * Math.min(1, dt * 14);
+    mScroller.style.transform = `translate3d(0, ${-mv.shown}px, 0)`;
+    mv.raf = requestAnimationFrame(mirrorFrame);
+  }
+  /* Na tela do controle: tocar pausa ou continua; arrastar move o texto lá */
+  rbView.addEventListener('pointerdown', e => {
+    if (!rst || rst.cover) return;
+    mv.drag = { y: e.clientY, p0: mv.shown, p: mv.shown, moved: false };
+    try { rbView.setPointerCapture(e.pointerId); } catch (err) {}
+  });
+  rbView.addEventListener('pointermove', e => {
+    const d = mv.drag; if (!d) return;
+    const dy = (e.clientY - d.y) / mv.scale;
+    if (Math.abs(e.clientY - d.y) > 6) d.moved = true;
+    if (!d.moved) return;
+    d.p = Math.max(0, Math.min(rst.max, d.p0 - dy));
+    const now = performance.now();
+    if (now - mv.sentAt > 50) { mv.sentAt = now; rcSend({ t: 'seek', pos: d.p }); }
+  });
+  const dragEnd = () => {
+    const d = mv.drag; if (!d) return;
+    mv.drag = null;
+    if (d.moved) { rcSend({ t: 'seek', pos: d.p, end: true }); if (rst) { rst.pos = d.p; rst.at = performance.now(); } }
+    else if (rst && !rst.cover) rcSend({ t: 'act', a: 'pause', ph: 'tap' });
+  };
+  rbView.addEventListener('pointerup', dragEnd);
+  rbView.addEventListener('pointercancel', dragEnd);
+  $('#rbEye').addEventListener('click', () => { rcStore.view = rcStore.view === false; rcSave(); rbRender(); });
+  window.addEventListener('resize', () => { if (rc.role === 'remote') { mv.key = ''; rbRender(); } });
+  /* A barra de baixo cresce com a tela; o resto da página ganha espaço pra rolar até o fim */
+  if (window.ResizeObserver) new ResizeObserver(() => document.documentElement.style.setProperty('--rbh', $('#rbar').offsetHeight + 'px')).observe($('#rbar'));
   $('#rbPlay').addEventListener('click', () => {
     if (!rst || !rst.reading) rcSend({ t: 'cmd', c: 'open' });
     else if (rst.cover) rcSend({ t: 'cmd', c: 'start' });

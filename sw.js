@@ -1,5 +1,5 @@
 // Gerado pelo build.py. Versão muda sempre que o app muda.
-const CACHE = 'teleprompter-07c81b4eab';
+const CACHE = 'teleprompter-e44f6c92e6';
 const FILES = ['./', 'index.html', 'fonts.css', 'manifest.webmanifest', 'icon-192.png', 'icon-512.png', 'apple-touch-icon.png', 'fonts/AtkinsonHyperlegible-400.woff2', 'fonts/AtkinsonHyperlegible-700.woff2', 'fonts/Figtree-400.woff2', 'fonts/Figtree-500.woff2', 'fonts/Figtree-600.woff2', 'fonts/Figtree-700.woff2', 'fonts/JetBrainsMono-500.woff2'];
 
 self.addEventListener('install', e => {
